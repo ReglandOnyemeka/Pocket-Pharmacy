@@ -13,6 +13,7 @@ import {
   Trash2, 
   RefreshCw, 
   DollarSign, 
+  Coins,
   Layers, 
   ChevronRight, 
   FileSpreadsheet, 
@@ -33,12 +34,15 @@ import {
   Mail,
   FileText,
   Bell,
-  AlertCircle
+  AlertCircle,
+  X,
+  Building2,
+  Building,
+  ShieldCheck
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 import { motion, AnimatePresence } from "motion/react";
-import { PitchDeck } from "./components/PitchDeck";
 
 // Types
 interface Product {
@@ -47,6 +51,7 @@ interface Product {
   api_molecule: string;
   category: string;
   price: number;
+  cost_price?: number;
   quantity: number;
   pom: boolean;
   created_at?: string;
@@ -138,6 +143,20 @@ interface AppUser {
   features: string[];
 }
 
+const validatePassword = (pass: string): { valid: boolean; message: string } => {
+  const p = pass.trim();
+  if (p.length < 6 || p.length > 10) {
+    return { valid: false, message: "Password must be 6 to 10 characters long." };
+  }
+  const hasLetter = /[a-zA-Z]/.test(p);
+  const hasNumber = /[0-9]/.test(p);
+  const hasSpecial = /[^a-zA-Z0-9]/.test(p);
+  if (!hasLetter || !hasNumber || !hasSpecial) {
+    return { valid: false, message: "Password must contain a mix of letters, numbers, and special characters (e.g. @, #, $)." };
+  }
+  return { valid: true, message: "" };
+};
+
 const DEFAULT_PHARMACIES: Pharmacy[] = [
   {
     id: "gpharm-lagos-hq",
@@ -154,7 +173,7 @@ const DEFAULT_USERS: AppUser[] = [
     id: "user-super",
     pharmacyId: "gpharm-lagos-hq",
     username: "superadmin",
-    pinCode: "1245",
+    pinCode: "Super1@",
     role: "super_admin",
     location: "Lagos Headquarters",
     features: ["sales", "inventory", "audits", "ai_consult", "admin_panel"]
@@ -163,7 +182,7 @@ const DEFAULT_USERS: AppUser[] = [
     id: "user-admin",
     pharmacyId: "gpharm-lagos-hq",
     username: "admin",
-    pinCode: "4321",
+    pinCode: "Admin1#",
     role: "admin",
     location: "Lagos Branch A",
     features: ["sales", "inventory", "audits", "ai_consult"]
@@ -172,7 +191,7 @@ const DEFAULT_USERS: AppUser[] = [
     id: "user-cashier",
     pharmacyId: "gpharm-lagos-hq",
     username: "cashier",
-    pinCode: "1234",
+    pinCode: "Cash1$",
     role: "cashier",
     location: "Lagos Branch B",
     features: ["sales"]
@@ -185,16 +204,16 @@ const SUPABASE_KEY = "sb_publishable_-WC3BTgSny08Oya6VmdBlA_znweCfNH";
 
 // Initial mock data focusing on realistic pharmaceutical products in Lagos
 const DEFAULT_PRODUCTS: Product[] = [
-  { id: "1", name: "Amoxil 500mg", api_molecule: "Amoxicillin", category: "Antibiotics", price: 4500, quantity: 24, pom: true, low_stock_threshold: 15, expiry_month: 11, expiry_year: 2026, drug_type: "Capsule" },
-  { id: "2", name: "Panadol Extra", api_molecule: "Paracetamol / Caffeine", category: "Analgesics", price: 1200, quantity: 150, pom: false, low_stock_threshold: 30, expiry_month: 12, expiry_year: 2027, drug_type: "Tablet" },
-  { id: "3", name: "Augmentin 625mg", api_molecule: "Co-amoxiclav", category: "Antibiotics", price: 18500, quantity: 8, pom: true, low_stock_threshold: 12, expiry_month: 8, expiry_year: 2026, drug_type: "Tablet" }, // Low stock & expiring soon (Aug 2026)
-  { id: "4", name: "Lonart DS", api_molecule: "Artemether / Lumefantrine", category: "Antimalarials", price: 2500, quantity: 55, pom: false, low_stock_threshold: 20, expiry_month: 10, expiry_year: 2027, drug_type: "Tablet" },
-  { id: "5", name: "Rocephin 1g Injection", api_molecule: "Ceftriaxone", category: "Antibiotics", price: 9000, quantity: 4, pom: true, low_stock_threshold: 10, expiry_month: 9, expiry_year: 2026, drug_type: "Injection" }, // Low stock & expiring soon (Sept 2026)
-  { id: "6", name: "Ventolin Inhaler", api_molecule: "Salbutamol", category: "Inhalers & Respiratory", price: 7200, quantity: 35, pom: true, low_stock_threshold: 10, expiry_month: 4, expiry_year: 2027, drug_type: "Inhaler" },
-  { id: "7", name: "Glucophage 500mg", api_molecule: "Metformin", category: "Antidiabetics", price: 3800, quantity: 42, pom: true, low_stock_threshold: 15, expiry_month: 5, expiry_year: 2027, drug_type: "Tablet" },
-  { id: "8", name: "Lipitor 20mg", api_molecule: "Atorvastatin", category: "Antihypertensives & Cardio", price: 12500, quantity: 18, pom: true, low_stock_threshold: 15, expiry_month: 7, expiry_year: 2026, drug_type: "Tablet" }, // Expiring this month (July 2026)
-  { id: "9", name: "Gaviscon Suspension 250ml", api_molecule: "Sodium Alginate / Antacid", category: "Antacids & Gastro", price: 5000, quantity: 12, pom: false, low_stock_threshold: 5, expiry_month: 3, expiry_year: 2027, drug_type: "Suspension" },
-  { id: "10", name: "Ventolin Nebules 2.5mg", api_molecule: "Salbutamol", category: "Inhalers & Respiratory", price: 8000, quantity: 3, pom: true, low_stock_threshold: 8, expiry_month: 12, expiry_year: 2026, drug_type: "Other" } // Low stock
+  { id: "1", name: "Amoxil 500mg", api_molecule: "Amoxicillin", category: "Antibiotics", price: 4500, cost_price: 3150, quantity: 24, pom: true, low_stock_threshold: 15, expiry_month: 11, expiry_year: 2026, drug_type: "Capsule", pharmacyId: "gpharm-lagos-hq" },
+  { id: "2", name: "Panadol Extra", api_molecule: "Paracetamol / Caffeine", category: "Analgesics", price: 1200, cost_price: 840, quantity: 150, pom: false, low_stock_threshold: 30, expiry_month: 12, expiry_year: 2027, drug_type: "Tablet", pharmacyId: "gpharm-lagos-hq" },
+  { id: "3", name: "Augmentin 625mg", api_molecule: "Co-amoxiclav", category: "Antibiotics", price: 18500, cost_price: 13000, quantity: 8, pom: true, low_stock_threshold: 12, expiry_month: 8, expiry_year: 2026, drug_type: "Tablet", pharmacyId: "gpharm-lagos-hq" }, // Low stock & expiring soon (Aug 2026)
+  { id: "4", name: "Lonart DS", api_molecule: "Artemether / Lumefantrine", category: "Antimalarials", price: 2500, cost_price: 1750, quantity: 55, pom: false, low_stock_threshold: 20, expiry_month: 10, expiry_year: 2027, drug_type: "Tablet", pharmacyId: "gpharm-lagos-hq" },
+  { id: "5", name: "Rocephin 1g Injection", api_molecule: "Ceftriaxone", category: "Antibiotics", price: 9000, cost_price: 6300, quantity: 4, pom: true, low_stock_threshold: 10, expiry_month: 9, expiry_year: 2026, drug_type: "Injection", pharmacyId: "gpharm-lagos-hq" }, // Low stock & expiring soon (Sept 2026)
+  { id: "6", name: "Ventolin Inhaler", api_molecule: "Salbutamol", category: "Inhalers & Respiratory", price: 7200, cost_price: 5040, quantity: 35, pom: true, low_stock_threshold: 10, expiry_month: 4, expiry_year: 2027, drug_type: "Inhaler", pharmacyId: "gpharm-lagos-hq" },
+  { id: "7", name: "Glucophage 500mg", api_molecule: "Metformin", category: "Antidiabetics", price: 3800, cost_price: 2660, quantity: 42, pom: true, low_stock_threshold: 15, expiry_month: 5, expiry_year: 2027, drug_type: "Tablet", pharmacyId: "gpharm-lagos-hq" },
+  { id: "8", name: "Lipitor 20mg", api_molecule: "Atorvastatin", category: "Antihypertensives & Cardio", price: 12500, cost_price: 8750, quantity: 18, pom: true, low_stock_threshold: 15, expiry_month: 7, expiry_year: 2026, drug_type: "Tablet", pharmacyId: "gpharm-lagos-hq" }, // Expiring this month (July 2026)
+  { id: "9", name: "Gaviscon Suspension 250ml", api_molecule: "Sodium Alginate / Antacid", category: "Antacids & Gastro", price: 5000, cost_price: 3500, quantity: 12, pom: false, low_stock_threshold: 5, expiry_month: 3, expiry_year: 2027, drug_type: "Suspension", pharmacyId: "gpharm-lagos-hq" },
+  { id: "10", name: "Ventolin Nebules 2.5mg", api_molecule: "Salbutamol", category: "Inhalers & Respiratory", price: 8000, cost_price: 5600, quantity: 3, pom: true, low_stock_threshold: 8, expiry_month: 12, expiry_year: 2026, drug_type: "Other", pharmacyId: "gpharm-lagos-hq" } // Low stock
 ];
 
 const DRUG_CATEGORIES = [
@@ -207,6 +226,72 @@ const DRUG_CATEGORIES = [
   "Antacids & Gastro",
   "Inhalers & Respiratory",
   "Vitamins & Supplements"
+];
+
+interface DrugApiMapping {
+  name: string;
+  api: string;
+  category: string;
+}
+
+const DEFAULT_DRUG_API_KNOWLEDGE: DrugApiMapping[] = [
+  // Antibiotics
+  { name: "Amoxil 500mg", api: "Amoxicillin", category: "Antibiotics" },
+  { name: "Augmentin 625mg", api: "Co-amoxiclav", category: "Antibiotics" },
+  { name: "Zinnat 500mg", api: "Cefuroxime", category: "Antibiotics" },
+  { name: "Rocephin 1g Injection", api: "Ceftriaxone", category: "Antibiotics" },
+  { name: "Flagyl 400mg", api: "Metronidazole", category: "Antibiotics" },
+  { name: "Ciprotab 500mg", api: "Ciprofloxacin", category: "Antibiotics" },
+  { name: "Azithromycin 500mg", api: "Azithromycin", category: "Antibiotics" },
+  { name: "Doxycycline 100mg", api: "Doxycycline", category: "Antibiotics" },
+  { name: "Erythrocin 250mg", api: "Erythromycin", category: "Antibiotics" },
+  
+  // Analgesics
+  { name: "Panadol Extra", api: "Paracetamol / Caffeine", category: "Analgesics" },
+  { name: "Panadol 500mg", api: "Paracetamol", category: "Analgesics" },
+  { name: "Emcap Extra", api: "Paracetamol", category: "Analgesics" },
+  { name: "Ibuprofen 400mg", api: "Ibuprofen", category: "Analgesics" },
+  { name: "Cataflam 50mg", api: "Diclofenac Potassium", category: "Analgesics" },
+  { name: "Voltaren 50mg", api: "Diclofenac Sodium", category: "Analgesics" },
+  { name: "Tramadol 50mg", api: "Tramadol", category: "Analgesics" },
+  { name: "Felvin 20mg", api: "Piroxicam", category: "Analgesics" },
+
+  // Antimalarials
+  { name: "Lonart DS", api: "Artemether / Lumefantrine", category: "Antimalarials" },
+  { name: "Coartem 80/480", api: "Artemether / Lumefantrine", category: "Antimalarials" },
+  { name: "Malar-2 (Adult)", api: "Artemether / Lumefantrine", category: "Antimalarials" },
+  { name: "Amatem Softgel", api: "Artemether / Lumefantrine", category: "Antimalarials" },
+  { name: "Fansidar", api: "Sulfadoxine / Pyrimethamine", category: "Antimalarials" },
+  { name: "Quinine 300mg", api: "Quinine Sulfate", category: "Antimalarials" },
+
+  // Antihypertensives & Cardio
+  { name: "Lipitor 20mg", api: "Atorvastatin", category: "Antihypertensives & Cardio" },
+  { name: "Norvasc 10mg", api: "Amlodipine", category: "Antihypertensives & Cardio" },
+  { name: "Co-Diovan 160mg", api: "Valsartan / Hydrochlorothiazide", category: "Antihypertensives & Cardio" },
+  { name: "Moduretic", api: "Amiloride / Hydrochlorothiazide", category: "Antihypertensives & Cardio" },
+  { name: "Lisumpress 10mg", api: "Lisinopril", category: "Antihypertensives & Cardio" },
+  { name: "Vasoprin 75mg", api: "Aspirin", category: "Antihypertensives & Cardio" },
+
+  // Inhalers & Respiratory
+  { name: "Ventolin Inhaler", api: "Salbutamol", category: "Inhalers & Respiratory" },
+  { name: "Ventolin Nebules 2.5mg", api: "Salbutamol", category: "Inhalers & Respiratory" },
+  { name: "Seretide Evohaler", api: "Fluticasone / Salmeterol", category: "Inhalers & Respiratory" },
+  { name: "Prospan Syrup", api: "Hedera Helix Extract", category: "Inhalers & Respiratory" },
+
+  // Antacids & Gastro
+  { name: "Gaviscon Suspension 250ml", api: "Sodium Alginate / Antacid", category: "Antacids & Gastro" },
+  { name: "Omeprazole 20mg", api: "Omeprazole", category: "Antacids & Gastro" },
+  { name: "Gestid Suspension", api: "Magnesium Trisilicate", category: "Antacids & Gastro" },
+
+  // Antidiabetics
+  { name: "Glucophage 500mg", api: "Metformin", category: "Antidiabetics" },
+  { name: "Daonil 5mg", api: "Glibenclamide", category: "Antidiabetics" },
+  { name: "Januvia 100mg", api: "Sitagliptin", category: "Antidiabetics" },
+
+  // Vitamins & Supplements
+  { name: "Astymin Liquid", api: "Amino Acids / Multivitamins", category: "Vitamins & Supplements" },
+  { name: "Sangobion Capsules", api: "Ferrous Gluconate / Folic Acid", category: "Vitamins & Supplements" },
+  { name: "Vitamin C 100mg", api: "Ascorbic Acid", category: "Vitamins & Supplements" }
 ];
 
 const generateMockSales = (): SalesRecord[] => {
@@ -392,7 +477,17 @@ export default function App() {
   const [appUsers, setAppUsers] = useState<AppUser[]>(() => {
     const saved = localStorage.getItem("pocket_app_users");
     if (saved) {
-      try { return JSON.parse(saved); } catch { return DEFAULT_USERS; }
+      try {
+        const parsed = JSON.parse(saved) as AppUser[];
+        const migrated = parsed.map(u => {
+          if (u.username === "cashier" && (u.pinCode === "1234" || u.pinCode.length < 6)) return { ...u, pinCode: "Cash1$" };
+          if (u.username === "admin" && (u.pinCode === "4321" || u.pinCode.length < 6)) return { ...u, pinCode: "Admin1#" };
+          if (u.username === "superadmin" && (u.pinCode === "1245" || u.pinCode.length < 6)) return { ...u, pinCode: "Super1@" };
+          return u;
+        });
+        localStorage.setItem("pocket_app_users", JSON.stringify(migrated));
+        return migrated;
+      } catch { return DEFAULT_USERS; }
     } else {
       localStorage.setItem("pocket_app_users", JSON.stringify(DEFAULT_USERS));
       return DEFAULT_USERS;
@@ -489,7 +584,8 @@ export default function App() {
           shelfCount: 24,
           discrepancy: 4,
           reason: "Found unrecorded carton in back shelf during physical count",
-          timestamp: "09:00:00 AM 07/05/2026"
+          timestamp: "09:00:00 AM 07/05/2026",
+          pharmacyId: "gpharm-lagos-hq"
         },
         {
           id: "ST-2",
@@ -499,7 +595,8 @@ export default function App() {
           shelfCount: 8,
           discrepancy: -2,
           reason: "Damaged box discarded, not yet written off",
-          timestamp: "09:15:00 AM 07/05/2026"
+          timestamp: "09:15:00 AM 07/05/2026",
+          pharmacyId: "gpharm-lagos-hq"
         }
       ];
       localStorage.setItem("pocket_stock_audit_history", JSON.stringify(defaultAudits));
@@ -517,8 +614,8 @@ export default function App() {
       }
     } else {
       const defaultFreqs: StockFrequency[] = [
-        { id: "SF-1", frequency: "Weekly", targetDayOrDate: "Monday", timeOfDay: "08:00 AM", notes: "Weekly routine morning stock audit" },
-        { id: "SF-2", frequency: "Monthly", targetDayOrDate: "1st day of month", timeOfDay: "06:00 PM", notes: "End of month clinical reconciliation" }
+        { id: "SF-1", frequency: "Weekly", targetDayOrDate: "Monday", timeOfDay: "08:00 AM", notes: "Weekly routine morning stock audit", pharmacyId: "gpharm-lagos-hq" },
+        { id: "SF-2", frequency: "Monthly", targetDayOrDate: "1st day of month", timeOfDay: "06:00 PM", notes: "End of month clinical reconciliation", pharmacyId: "gpharm-lagos-hq" }
       ];
       localStorage.setItem("pocket_stock_frequencies", JSON.stringify(defaultFreqs));
       return defaultFreqs;
@@ -544,33 +641,43 @@ export default function App() {
     }
   }, [isLoggedIn, currentRole, appUsers, pharmacies, currentUser, currentPharmacy]);
 
-  // Sync staff location state with current pharmacy headquarter
+  // Sync staff location & edit form state with current pharmacy headquarter
   useEffect(() => {
     if (currentPharmacy) {
       setNewUserLocation(currentPharmacy.location);
+      setEditPharmName(currentPharmacy.name || "");
+      setEditPharmDirector(currentPharmacy.directorName || "");
+      setEditPharmLocation(currentPharmacy.location || "");
+      setEditPharmPhone(currentPharmacy.phone || "");
+      setEditPharmEmail(currentPharmacy.email || "");
     }
   }, [currentPharmacy]);
 
-  // --- Active Pharmacy Memos ---
+  // --- Active Pharmacy Memos for Multi-Tenant Data Isolation ---
   const activePharmacyProducts = useMemo(() => {
-    if (!currentPharmacy) return products;
-    return products.filter(p => !p.pharmacyId || p.pharmacyId === currentPharmacy.id);
+    if (!currentPharmacy) return [];
+    return products.filter(p => (p.pharmacyId || "gpharm-lagos-hq") === currentPharmacy.id);
   }, [products, currentPharmacy]);
 
   const activePharmacySales = useMemo(() => {
-    if (!currentPharmacy) return salesRecords;
-    return salesRecords.filter(r => !r.pharmacyId || r.pharmacyId === currentPharmacy.id);
+    if (!currentPharmacy) return [];
+    return salesRecords.filter(r => (r.pharmacyId || "gpharm-lagos-hq") === currentPharmacy.id);
   }, [salesRecords, currentPharmacy]);
 
   const activePharmacyAudits = useMemo(() => {
-    if (!currentPharmacy) return stockAuditHistory;
-    return stockAuditHistory.filter(a => !a.pharmacyId || a.pharmacyId === currentPharmacy.id);
+    if (!currentPharmacy) return [];
+    return stockAuditHistory.filter(a => (a.pharmacyId || "gpharm-lagos-hq") === currentPharmacy.id);
   }, [stockAuditHistory, currentPharmacy]);
 
   const activePharmacyFrequencies = useMemo(() => {
-    if (!currentPharmacy) return stockTakingFrequencies;
-    return stockTakingFrequencies.filter(f => !f.pharmacyId || f.pharmacyId === currentPharmacy.id);
+    if (!currentPharmacy) return [];
+    return stockTakingFrequencies.filter(f => (f.pharmacyId || "gpharm-lagos-hq") === currentPharmacy.id);
   }, [stockTakingFrequencies, currentPharmacy]);
+
+  const activePharmacyUsers = useMemo(() => {
+    if (!currentPharmacy) return [];
+    return appUsers.filter(u => (u.pharmacyId || "gpharm-lagos-hq") === currentPharmacy.id);
+  }, [appUsers, currentPharmacy]);
 
   const [shelfCounts, setShelfCounts] = useState<{[key: string]: string}>({});
   const [discrepancyReasons, setDiscrepancyReasons] = useState<{[key: string]: string}>({});
@@ -589,6 +696,79 @@ export default function App() {
 
   // Stock Auditor Search state
   const [auditSearchQuery, setAuditSearchQuery] = useState<string>("");
+
+  // Master Inventory Manager Search state (Default view shows top 3 in-stock + 2 lost/out-of-stock medicines)
+  const [masterInventorySearchQuery, setMasterInventorySearchQuery] = useState<string>("");
+  const [showAllInventory, setShowAllInventory] = useState<boolean>(false);
+
+  // Filtered inventory products logic for Section 4 (Top 3 medicines + 2 lost medicines default display)
+  const filteredInventoryProducts = useMemo(() => {
+    const q = masterInventorySearchQuery.trim().toLowerCase();
+
+    // 1. When a search query is active, return all matching items from pharmacy inventory
+    if (q !== "") {
+      return activePharmacyProducts.filter((p) => {
+        return (
+          p.name.toLowerCase().includes(q) ||
+          (p.api_molecule && p.api_molecule.toLowerCase().includes(q)) ||
+          p.category.toLowerCase().includes(q) ||
+          (p.drug_type && p.drug_type.toLowerCase().includes(q))
+        );
+      });
+    }
+
+    // 2. When 'Show Full List' is manually toggled on, show all pharmacy products
+    if (showAllInventory) {
+      return activePharmacyProducts;
+    }
+
+    // 3. DEFAULT PREVIEW MODE: Top 3 available medicines + 2 lost / out-of-stock medicines
+    const inStock = activePharmacyProducts.filter((p) => p.quantity > 0);
+    const lostOrLowStock = activePharmacyProducts.filter((p) => p.quantity <= 0);
+
+    const top3InStock = inStock.slice(0, 3);
+    
+    // Pick 2 lost / out-of-stock items, or if fewer than 2, pick lowest quantity items remaining
+    let top2Lost = lostOrLowStock.slice(0, 2);
+    if (top2Lost.length < 2) {
+      const top3Ids = new Set(top3InStock.map((p) => p.id));
+      const remainingByLowQty = [...activePharmacyProducts]
+        .filter((p) => !top3Ids.has(p.id))
+        .sort((a, b) => a.quantity - b.quantity);
+      
+      const needed = 2 - top2Lost.length;
+      top2Lost = [...top2Lost, ...remainingByLowQty.slice(0, needed)];
+    }
+
+    return [...top3InStock, ...top2Lost];
+  }, [activePharmacyProducts, masterInventorySearchQuery, showAllInventory]);
+
+  // Calculate total inventory metrics (Total Products, Total Units, Total Cost Value, Total Sales Value, Profit Margin)
+  const inventoryMetrics = useMemo(() => {
+    const totalProductsCount = activePharmacyProducts.length;
+    const totalUnitsCount = activePharmacyProducts.reduce((sum, p) => sum + (p.quantity || 0), 0);
+    
+    const totalCostValue = activePharmacyProducts.reduce((sum, p) => {
+      const unitCost = p.cost_price !== undefined && p.cost_price !== null && !isNaN(p.cost_price)
+        ? p.cost_price
+        : Math.round((p.price || 0) * 0.7);
+      return sum + (unitCost * (p.quantity || 0));
+    }, 0);
+
+    const totalSalesValue = activePharmacyProducts.reduce((sum, p) => {
+      return sum + ((p.price || 0) * (p.quantity || 0));
+    }, 0);
+
+    const totalPotentialProfit = totalSalesValue - totalCostValue;
+
+    return {
+      totalProductsCount,
+      totalUnitsCount,
+      totalCostValue,
+      totalSalesValue,
+      totalPotentialProfit
+    };
+  }, [activePharmacyProducts]);
 
   // Simulated Reminder Logs State
   const [reminderLogs, setReminderLogs] = useState<{
@@ -621,7 +801,7 @@ export default function App() {
   const [smsPreviewText, setSmsPreviewText] = useState<string>("");
 
   // Super Admin Navigation Tab
-  const [superAdminTab, setSuperAdminTab] = useState<"sales" | "stocktake" | "frequencies">("sales");
+  const [superAdminTab, setSuperAdminTab] = useState<"sales" | "stocktake" | "frequencies" | "staff" | "pharmacy_profile">("sales");
 
   // User filter state for Sales Journal
   const [selectedUserFilter, setSelectedUserFilter] = useState<string>("all");
@@ -635,7 +815,6 @@ export default function App() {
   const [activeAlertTab, setActiveAlertTab] = useState<"low" | "expiry">("low");
 
   // --- Modals State ---
-  const [isPitchDeckOpen, setIsPitchDeckOpen] = useState<boolean>(false);
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState<boolean>(false);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState<boolean>(false);
   const [lastReceipt, setLastReceipt] = useState<{
@@ -649,12 +828,27 @@ export default function App() {
     receiptId: string;
   } | null>(null);
 
+  // --- Drug & API System Knowledge Base ---
+  const [drugApiKnowledge, setDrugApiKnowledge] = useState<DrugApiMapping[]>(() => {
+    const saved = localStorage.getItem("pocket_drug_api_knowledge");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return DEFAULT_DRUG_API_KNOWLEDGE;
+  });
+
   // --- Manual Product Form ---
   const [manualForm, setManualForm] = useState({
     name: "",
     api_molecule: "",
     category: "Antibiotics",
     price: "",
+    cost_price: "",
     quantity: "",
     pom: false,
     low_stock_threshold: "10",
@@ -662,6 +856,45 @@ export default function App() {
     expiry_year: "2027",
     drug_type: "Tablet"
   });
+
+  // Search matching drug API suggestion based on entered name
+  const suggestedApiForInput = useMemo(() => {
+    if (!manualForm.name || manualForm.name.trim().length < 2) return "";
+    const query = manualForm.name.trim().toLowerCase();
+    
+    // Check drugApiKnowledge
+    const matchInKnowledge = drugApiKnowledge.find(k => k.name.toLowerCase().includes(query) && k.api);
+    if (matchInKnowledge) return matchInKnowledge.api;
+
+    // Fallback check existing products list
+    const matchInProducts = activePharmacyProducts.find(p => p.name.toLowerCase().includes(query) && p.api_molecule);
+    if (matchInProducts) return matchInProducts.api_molecule;
+
+    return "";
+  }, [manualForm.name, drugApiKnowledge, activePharmacyProducts]);
+
+  // Related Drugs and APIs for selected category
+  const categoryRelatedList = useMemo(() => {
+    const cat = manualForm.category;
+    const list: DrugApiMapping[] = [];
+    const seenNames = new Set<string>();
+
+    drugApiKnowledge.forEach(k => {
+      if (k.category === cat && !seenNames.has(k.name.toLowerCase())) {
+        seenNames.add(k.name.toLowerCase());
+        list.push(k);
+      }
+    });
+
+    activePharmacyProducts.forEach(p => {
+      if (p.category === cat && !seenNames.has(p.name.toLowerCase())) {
+        seenNames.add(p.name.toLowerCase());
+        list.push({ name: p.name, api: p.api_molecule || "", category: p.category });
+      }
+    });
+
+    return list;
+  }, [manualForm.category, drugApiKnowledge, activePharmacyProducts]);
 
   // --- Gemini Staff AI Consult States ---
   const [consultingProduct, setConsultingProduct] = useState<Product | null>(null);
@@ -713,8 +946,11 @@ export default function App() {
     }
   };
 
-  // --- Two-Way Offline & Online Synchronization Engine ---
+  // --- Two-Way Offline & Online Synchronization Engine (Multi-Tenant Isolated) ---
   const performTwoWaySync = async () => {
+    if (!currentPharmacy) return;
+    const targetPharmId = currentPharmacy.id;
+
     if (!supabase) {
       setDbStatus("local_fallback");
       loadLocalProducts();
@@ -731,42 +967,45 @@ export default function App() {
 
     try {
       setDbStatus("connecting");
-      addLog("Synchronizing inventory with Supabase...");
+      addLog(`Synchronizing inventory for workspace "${currentPharmacy.name}"...`);
 
-      // 1. Fetch remote products
+      // 1. Fetch remote products for ONLY this active pharmacy
       const { data: remoteProducts, error } = await supabase
         .from("pharmacy_inventory")
         .select("*")
+        .eq("pharmacyId", targetPharmId)
         .order("name", { ascending: true });
 
       if (error) {
         throw error;
       }
 
-      // Get latest local products using the ref
-      let localProducts = [...productsRef.current];
+      // Get latest local products for this pharmacy using the ref
+      let localProducts = [...productsRef.current].filter(p => (p.pharmacyId || "gpharm-lagos-hq") === targetPharmId);
       if (localProducts.length === 0) {
         const saved = localStorage.getItem("gpharm_local_products");
         if (saved) {
-          try { localProducts = JSON.parse(saved); } catch {}
+          try {
+            const parsed: Product[] = JSON.parse(saved);
+            localProducts = parsed.filter(p => (p.pharmacyId || "gpharm-lagos-hq") === targetPharmId);
+          } catch {}
         }
       }
 
-      // If remote database is completely empty, seed it with our local products or defaults
+      // If remote database is empty for this pharmacy workspace, seed it with this pharmacy's local items
       if (!remoteProducts || remoteProducts.length === 0) {
-        addLog("Remote database table empty. Seeding local inventory...");
-        const seedSource = localProducts.length > 0 ? localProducts : DEFAULT_PRODUCTS;
+        const seedSource = localProducts.length > 0 ? localProducts : DEFAULT_PRODUCTS.map(p => ({ ...p, pharmacyId: targetPharmId }));
+        const seedWithPharm = seedSource.map(p => ({ ...p, pharmacyId: targetPharmId }));
         const { error: seedError } = await supabase
           .from("pharmacy_inventory")
-          .insert(seedSource);
+          .insert(seedWithPharm);
         
         if (seedError) {
-          throw seedError;
+          console.warn("Cloud seed notice:", seedError);
+        } else {
+          addLog(`Seeded Cloud workspace for "${currentPharmacy.name}" successfully!`);
         }
-        
-        setProducts(seedSource);
         setDbStatus("connected");
-        addLog("Seeded database with inventory benchmarks successfully!");
         return;
       }
 
@@ -777,12 +1016,12 @@ export default function App() {
         try { deletedIds = JSON.parse(savedDeleted); } catch {}
       }
 
-      // 2. Process Deletions on Remote
+      // 2. Process Deletions on Remote for this pharmacy space
       if (deletedIds.length > 0) {
         addLog(`Syncing offline deletions (${deletedIds.length} items)...`);
         for (const delId of deletedIds) {
           try {
-            await supabase.from("pharmacy_inventory").delete().eq("id", delId);
+            await supabase.from("pharmacy_inventory").delete().eq("id", delId).eq("pharmacyId", targetPharmId);
           } catch (e) {
             console.warn(`Failed to delete product ${delId} on remote:`, e);
           }
@@ -802,42 +1041,39 @@ export default function App() {
 
       // A. Scan local products to see if they need to be upserted to remote
       localProducts.forEach(localProd => {
-        // Skip if this product was deleted locally
         if (deletedIds.includes(localProd.id)) return;
 
         const remoteProd = remoteMap.get(localProd.id);
         if (!remoteProd) {
-          // Created offline -> needs upsert
-          itemsToUpsert.push(localProd);
-          mergedProducts.push(localProd);
+          const tagged = { ...localProd, pharmacyId: targetPharmId };
+          itemsToUpsert.push(tagged);
+          mergedProducts.push(tagged);
         } else {
-          // Exists on both. If our local version has different quantity or details, local wins (since we modified it locally)
           if (localProd.quantity !== remoteProd.quantity || 
               localProd.price !== remoteProd.price || 
               localProd.name !== remoteProd.name ||
               localProd.api_molecule !== remoteProd.api_molecule) {
-            itemsToUpsert.push(localProd);
-            mergedProducts.push(localProd);
+            const tagged = { ...localProd, pharmacyId: targetPharmId };
+            itemsToUpsert.push(tagged);
+            mergedProducts.push(tagged);
           } else {
             mergedProducts.push(remoteProd);
           }
         }
       });
 
-      // B. Scan remote products to pull items added/modified by other users
+      // B. Scan remote products to pull items added/modified by other users of THIS pharmacy
       remoteProducts.forEach(remoteProd => {
-        // Skip if deleted locally or already handled above
         if (deletedIds.includes(remoteProd.id)) return;
         
         if (!localMap.has(remoteProd.id)) {
-          // Added on other terminal -> pull locally
           mergedProducts.push(remoteProd);
         }
       });
 
       // 4. Perform batch upsert to Supabase
       if (itemsToUpsert.length > 0) {
-        addLog(`Pushing ${itemsToUpsert.length} modifications to Cloud...`);
+        addLog(`Pushing ${itemsToUpsert.length} modifications for ${currentPharmacy.name} to Cloud...`);
         const { error: upsertError } = await supabase
           .from("pharmacy_inventory")
           .upsert(itemsToUpsert);
@@ -850,12 +1086,15 @@ export default function App() {
         }
       }
 
-      // 5. Update local state and cache
-      const sortedProducts = mergedProducts.sort((a, b) => a.name.localeCompare(b.name));
-      setProducts(sortedProducts);
-      localStorage.setItem("gpharm_local_products", JSON.stringify(sortedProducts));
+      // 5. Update local state keeping other pharmacies' products intact in storage
+      const otherPharmaciesProducts = productsRef.current.filter(p => (p.pharmacyId || "gpharm-lagos-hq") !== targetPharmId);
+      const allProductsUpdated = [...otherPharmaciesProducts, ...mergedProducts].sort((a, b) => a.name.localeCompare(b.name));
+
+      setProducts(allProductsUpdated);
+      localStorage.setItem("gpharm_local_products", JSON.stringify(allProductsUpdated));
 
       setDbStatus("connected");
+      addLog(`Synchronization complete for workspace: ${currentPharmacy.name}`);
       addLog("Synchronization complete! All terminal users synced.");
 
     } catch (err: any) {
@@ -966,50 +1205,30 @@ export default function App() {
     if (e) e.preventDefault();
     const cleanPin = pinCode.trim();
 
-    // 1. Support legacy quick-PIN-only log-ins if loginUsername is empty
-    if (!loginUsername.trim()) {
-      if (cleanPin === "1234" || cleanPin === "4321" || cleanPin === "1245") {
-        const matchingUser = appUsers.find(u => u.pinCode === cleanPin && u.pharmacyId === "gpharm-lagos-hq");
-        if (matchingUser) {
-          const matchingPharm = pharmacies.find(p => p.id === matchingUser.pharmacyId) || pharmacies[0];
-          setCurrentUser(matchingUser);
-          setCurrentPharmacy(matchingPharm);
-          setIsLoggedIn(true);
-          setCurrentRole(matchingUser.role);
-          localStorage.setItem("gpharm_is_logged_in", "true");
-          localStorage.setItem("gpharm_role", matchingUser.role);
-          localStorage.setItem("pocket_current_user", JSON.stringify(matchingUser));
-          localStorage.setItem("pocket_current_pharmacy", JSON.stringify(matchingPharm));
-          setPinCode("");
-          setPinError("");
-          addLog(`Access Granted. Welcome back, ${matchingUser.username} (${matchingUser.role.toUpperCase()})!`);
-          return;
-        }
-      }
+    if (!cleanPin) {
+      setPinError("❌ Please enter your password.");
+      return;
     }
 
-    // 2. Standard multi-tenant login (username + pin)
     const resolvedUsername = loginUsername.trim().toLowerCase();
+    
+    // Support login matching username and password
     const foundUser = appUsers.find(u => u.username === resolvedUsername && u.pinCode === cleanPin);
     if (foundUser) {
-      const foundPharm = pharmacies.find(p => p.id === foundUser.pharmacyId);
-      if (foundPharm) {
-        setCurrentUser(foundUser);
-        setCurrentPharmacy(foundPharm);
-        setIsLoggedIn(true);
-        setCurrentRole(foundUser.role);
-        localStorage.setItem("gpharm_is_logged_in", "true");
-        localStorage.setItem("gpharm_role", foundUser.role);
-        localStorage.setItem("pocket_current_user", JSON.stringify(foundUser));
-        localStorage.setItem("pocket_current_pharmacy", JSON.stringify(foundPharm));
-        setPinCode("");
-        setPinError("");
-        addLog(`Access Granted. Welcome back, ${foundUser.username} (${foundUser.role.toUpperCase()})!`);
-      } else {
-        setPinError("❌ ERROR: Associated pharmacy not found.");
-      }
+      const foundPharm = pharmacies.find(p => p.id === foundUser.pharmacyId) || pharmacies[0];
+      setCurrentUser(foundUser);
+      setCurrentPharmacy(foundPharm);
+      setIsLoggedIn(true);
+      setCurrentRole(foundUser.role);
+      localStorage.setItem("gpharm_is_logged_in", "true");
+      localStorage.setItem("gpharm_role", foundUser.role);
+      localStorage.setItem("pocket_current_user", JSON.stringify(foundUser));
+      localStorage.setItem("pocket_current_pharmacy", JSON.stringify(foundPharm));
+      setPinCode("");
+      setPinError("");
+      addLog(`Access Granted. Welcome back, ${foundUser.username} (${foundUser.role.toUpperCase()})!`);
     } else {
-      setPinError("❌ ACCESS DENIED: Invalid Username or PIN.");
+      setPinError("❌ ACCESS DENIED: Invalid Username or Password.");
     }
   };
 
@@ -1033,8 +1252,10 @@ export default function App() {
       alert("⚠️ Please fill all fields to onboard your pharmacy.");
       return;
     }
-    if (regPin.trim().length !== 4 || isNaN(Number(regPin.trim()))) {
-      alert("⚠️ PIN code must be exactly 4 digits.");
+    
+    const passCheck = validatePassword(regPin);
+    if (!passCheck.valid) {
+      alert(`⚠️ ${passCheck.message}`);
       return;
     }
 
@@ -1101,21 +1322,32 @@ export default function App() {
     addLog(`Onboarded new pharmacy space: ${newPharmacy.name}. Director: ${newPharmacy.directorName}`);
   };
 
-  // Keypad clicker helper
-  const handleKeypadPress = (val: string) => {
-    if (val === "C") {
-      setPinCode("");
-      setPinError("");
-    } else if (val === "ENTER") {
-      if (pinCode.length > 0) {
-        handleLogin();
-      }
-    } else {
-      if (pinCode.length < 8) {
-        setPinCode(prev => prev + val);
-        setPinError("");
-      }
+  const handleSavePharmacyProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentPharmacy) return;
+
+    if (!editPharmName.trim()) {
+      alert("⚠️ Pharmacy name is required.");
+      return;
     }
+
+    const updatedPharm: Pharmacy = {
+      ...currentPharmacy,
+      name: editPharmName.trim(),
+      directorName: editPharmDirector.trim(),
+      location: editPharmLocation.trim(),
+      phone: editPharmPhone.trim(),
+      email: editPharmEmail.trim()
+    };
+
+    setCurrentPharmacy(updatedPharm);
+    const updatedList = pharmacies.map(p => p.id === updatedPharm.id ? updatedPharm : p);
+    setPharmacies(updatedList);
+    localStorage.setItem("pocket_pharmacies", JSON.stringify(updatedList));
+    localStorage.setItem("pocket_current_pharmacy", JSON.stringify(updatedPharm));
+
+    addLog(`Updated pharmacy workspace profile for "${updatedPharm.name}".`);
+    alert(`✅ Pharmacy workspace profile for "${updatedPharm.name}" updated successfully!`);
   };
 
   const handleAddStaffUser = (e: React.FormEvent) => {
@@ -1124,10 +1356,13 @@ export default function App() {
       alert("⚠️ Please fill all fields to create a staff member.");
       return;
     }
-    if (newUserPin.trim().length !== 4 || isNaN(Number(newUserPin.trim()))) {
-      alert("⚠️ Security Code must be exactly 4 numeric digits.");
+    
+    const passCheck = validatePassword(newUserPin);
+    if (!passCheck.valid) {
+      alert(`⚠️ ${passCheck.message}`);
       return;
     }
+    
     if (!currentPharmacy) {
       alert("⚠️ No active pharmacy workspace selected.");
       return;
@@ -1153,6 +1388,7 @@ export default function App() {
     };
 
     const updatedUsers = [...appUsers, newStaff];
+    setAppUsers(updatedUsers);
     setAppUsers(updatedUsers);
     localStorage.setItem("pocket_app_users", JSON.stringify(updatedUsers));
 
@@ -1184,9 +1420,20 @@ export default function App() {
   };
 
   // --- 3. POS Logic ---
-  // Filtering products
+  // Calculate product sales count for ranking
+  const productSalesCountMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    activePharmacySales.forEach(sale => {
+      sale.items.forEach(item => {
+        map[item.id] = (map[item.id] || 0) + item.quantity;
+      });
+    });
+    return map;
+  }, [activePharmacySales]);
+
+  // Filtering products (limited strictly to top 3 products sorted by sales volume)
   const filteredProducts = useMemo(() => {
-    return activePharmacyProducts.filter((p) => {
+    const matched = activePharmacyProducts.filter((p) => {
       const matchesSearch = 
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.api_molecule.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -1197,7 +1444,17 @@ export default function App() {
 
       return matchesSearch && matchesCategory;
     });
-  }, [activePharmacyProducts, searchQuery, selectedCategory]);
+
+    // Sort by sales volume (highest sales first)
+    matched.sort((a, b) => {
+      const salesA = productSalesCountMap[a.id] || 0;
+      const salesB = productSalesCountMap[b.id] || 0;
+      return salesB - salesA;
+    });
+
+    // Limit visible products on POS to top 3
+    return matched.slice(0, 3);
+  }, [activePharmacyProducts, searchQuery, selectedCategory, productSalesCountMap]);
 
   // Dynamic alerts for low stock and expiring medicines (2 months before July 2026 or already expired)
   const clinicalAlerts = useMemo(() => {
@@ -1395,13 +1652,15 @@ export default function App() {
   const handleManualFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const price = parseFloat(manualForm.price);
+    const parsedCost = parseFloat(manualForm.cost_price);
+    const costPrice = !isNaN(parsedCost) && parsedCost >= 0 ? parsedCost : Math.round(price * 0.7);
     const quantity = parseInt(manualForm.quantity);
     const threshold = parseInt(manualForm.low_stock_threshold) || 10;
     const expMonth = parseInt(manualForm.expiry_month) || 12;
     const expYear = parseInt(manualForm.expiry_year) || 2027;
     const drugType = manualForm.drug_type || "Tablet";
 
-    if (!manualForm.name || !manualForm.api_molecule || isNaN(price) || isNaN(quantity)) {
+    if (!manualForm.name || isNaN(price) || isNaN(quantity)) {
       alert("⚠️ Please enter valid values for all required fields.");
       return;
     }
@@ -1409,9 +1668,10 @@ export default function App() {
     const newProduct: Product = {
       id: `prod-${Date.now()}`,
       name: manualForm.name.trim(),
-      api_molecule: manualForm.api_molecule.trim(),
+      api_molecule: (manualForm.api_molecule || "").trim(),
       category: manualForm.category,
       price: price,
+      cost_price: costPrice,
       quantity: quantity,
       pom: manualForm.pom,
       low_stock_threshold: threshold,
@@ -1420,6 +1680,20 @@ export default function App() {
       drug_type: drugType,
       pharmacyId: currentPharmacy?.id || "gpharm-lagos-hq"
     };
+
+    // Store learned drug & API pair into system knowledge base
+    if (newProduct.name && newProduct.api_molecule) {
+      const nameTrim = newProduct.name;
+      const apiTrim = newProduct.api_molecule;
+      const exists = drugApiKnowledge.some(
+        k => k.name.toLowerCase() === nameTrim.toLowerCase() && k.api.toLowerCase() === apiTrim.toLowerCase()
+      );
+      if (!exists) {
+        const updatedKnowledge = [{ name: nameTrim, api: apiTrim, category: manualForm.category }, ...drugApiKnowledge];
+        setDrugApiKnowledge(updatedKnowledge);
+        localStorage.setItem("pocket_drug_api_knowledge", JSON.stringify(updatedKnowledge));
+      }
+    }
 
     try {
       addLog(`Adding product: ${newProduct.name}`);
@@ -1446,6 +1720,7 @@ export default function App() {
         api_molecule: "",
         category: "Antibiotics",
         price: "",
+        cost_price: "",
         quantity: "",
         pom: false,
         low_stock_threshold: "10",
@@ -1484,7 +1759,9 @@ export default function App() {
           const name = row.Name || row.name || row["Brand Name"] || row["Brand"] || "";
           const api = row.API || row.api || row.Molecule || row["API Molecule"] || "";
           const category = row.Category || row.category || "General";
-          const price = parseFloat(row.Price || row.price || 0);
+          const price = parseFloat(row.Price || row.price || row["Selling Price"] || 0);
+          const parsedCost = parseFloat(row["Cost Price"] || row["Cost Price (NGN)"] || row.cost_price || row.Cost || row.cost || 0);
+          const costPrice = !isNaN(parsedCost) && parsedCost > 0 ? parsedCost : Math.round(price * 0.7);
           const quantity = parseInt(row.Quantity || row.quantity || row.Qty || row.qty || 0);
           const pomRaw = row.POM || row.pom || "No";
           const pom = pomRaw.toString().toLowerCase() === "yes" || 
@@ -1504,6 +1781,7 @@ export default function App() {
               api_molecule: api.toString().trim(),
               category: category.toString().trim(),
               price,
+              cost_price: costPrice,
               quantity,
               pom,
               low_stock_threshold: threshold,
@@ -1548,11 +1826,11 @@ export default function App() {
   // Generator for demo excel so that the client can test file uploads instantly
   const downloadDemoExcel = () => {
     const demoData = [
-      { Name: "Co-Diovan 160mg", API: "Valsartan / Hydrochlorothiazide", Category: "Antihypertensives & Cardio", Price: 14500, Quantity: 15, POM: "Yes", "Low Stock Threshold": 10, "Expiry Month": 9, "Expiry Year": 2026, "Drug Type": "Tablet" },
-      { Name: "Malar-2 (Adult)", API: "Artemether / Lumefantrine", Category: "Antimalarials", Price: 1800, Quantity: 40, POM: "No", "Low Stock Threshold": 20, "Expiry Month": 8, "Expiry Year": 2026, "Drug Type": "Tablet" },
-      { Name: "Zinnat 500mg", API: "Cefuroxime", Category: "Antibiotics", Price: 11000, Quantity: 6, POM: "Yes", "Low Stock Threshold": 15, "Expiry Month": 11, "Expiry Year": 2026, "Drug Type": "Tablet" },
-      { Name: "Actifed Cold Tab", API: "Triprolidine / Pseudoephedrine", Category: "Analgesics", Price: 1400, Quantity: 120, POM: "No", "Low Stock Threshold": 10, "Expiry Month": 5, "Expiry Year": 2027, "Drug Type": "Tablet" },
-      { Name: "Amloc 5mg", API: "Amlodipine", Category: "Antihypertensives & Cardio", Price: 4200, Quantity: 22, POM: "Yes", "Low Stock Threshold": 10, "Expiry Month": 12, "Expiry Year": 2027, "Drug Type": "Tablet" }
+      { Name: "Co-Diovan 160mg", API: "Valsartan / Hydrochlorothiazide", Category: "Antihypertensives & Cardio", Price: 14500, "Cost Price": 10150, Quantity: 15, POM: "Yes", "Low Stock Threshold": 10, "Expiry Month": 9, "Expiry Year": 2026, "Drug Type": "Tablet" },
+      { Name: "Malar-2 (Adult)", API: "Artemether / Lumefantrine", Category: "Antimalarials", Price: 1800, "Cost Price": 1260, Quantity: 40, POM: "No", "Low Stock Threshold": 20, "Expiry Month": 8, "Expiry Year": 2026, "Drug Type": "Tablet" },
+      { Name: "Zinnat 500mg", API: "Cefuroxime", Category: "Antibiotics", Price: 11000, "Cost Price": 7700, Quantity: 6, POM: "Yes", "Low Stock Threshold": 15, "Expiry Month": 11, "Expiry Year": 2026, "Drug Type": "Tablet" },
+      { Name: "Actifed Cold Tab", API: "Triprolidine / Pseudoephedrine", Category: "Analgesics", Price: 1400, "Cost Price": 980, Quantity: 120, POM: "No", "Low Stock Threshold": 10, "Expiry Month": 5, "Expiry Year": 2027, "Drug Type": "Tablet" },
+      { Name: "Amloc 5mg", API: "Amlodipine", Category: "Antihypertensives & Cardio", Price: 4200, "Cost Price": 2940, Quantity: 22, POM: "Yes", "Low Stock Threshold": 10, "Expiry Month": 12, "Expiry Year": 2027, "Drug Type": "Tablet" }
     ];
 
     const worksheet = XLSX.utils.json_to_sheet(demoData);
@@ -1564,12 +1842,17 @@ export default function App() {
 
   // --- 5B. Export Current Stock List (Admin & Super Admin) ---
   const exportCurrentStock = () => {
+    if (activePharmacyProducts.length === 0) {
+      alert("⚠️ No inventory records available for this pharmacy workspace to export.");
+      return;
+    }
     // Format headers and data
-    const exportData = products.map((p) => ({
+    const exportData = activePharmacyProducts.map((p) => ({
       "Brand Name": p.name,
       "API Molecule": p.api_molecule,
       "Category": p.category,
-      "Price (NGN)": p.price,
+      "Selling Price (NGN)": p.price,
+      "Cost Price (NGN)": p.cost_price ?? Math.round(p.price * 0.7),
       "Current Stock Qty": p.quantity,
       "POM Required": p.pom ? "Yes" : "No",
       "Low Stock Threshold": p.low_stock_threshold || 10,
@@ -1599,7 +1882,7 @@ export default function App() {
     const localTodayStr = getLocalDateString(today);
 
     // Filter by date
-    const filtered = salesRecords.filter((rec) => {
+    const filtered = activePharmacySales.filter((rec) => {
       if (period === "day") {
         return rec.date === localTodayStr;
       }
@@ -1654,7 +1937,7 @@ export default function App() {
 
   // --- 5D. Export Sales Report by User ---
   const exportUserSalesReport = (username: string) => {
-    const filtered = salesRecords.filter(rec => rec.userName === username);
+    const filtered = activePharmacySales.filter(rec => rec.userName === username);
     if (filtered.length === 0) {
       alert(`⚠️ No sales records found for user "${username}" to export.`);
       return;
@@ -1684,27 +1967,27 @@ export default function App() {
   // --- 5D. Unique users with sales or active in system ---
   const uniqueUsersWithSales = useMemo(() => {
     const users = new Set<string>();
-    salesRecords.forEach(rec => {
+    activePharmacySales.forEach(rec => {
       if (rec.userName) {
         users.add(rec.userName);
       }
     });
     // Add default users to make sure they are always selectable
-    appUsers.forEach(u => {
+    activePharmacyUsers.forEach(u => {
       if (u.username) {
         users.add(u.username);
       }
     });
     return Array.from(users).sort();
-  }, [salesRecords, appUsers]);
+  }, [activePharmacySales, activePharmacyUsers]);
 
   // --- 5E. Filtered sales records by selected user filter ---
   const filteredSalesRecords = useMemo(() => {
     if (selectedUserFilter === "all") {
-      return salesRecords;
+      return activePharmacySales;
     }
-    return salesRecords.filter(rec => rec.userName === selectedUserFilter);
-  }, [salesRecords, selectedUserFilter]);
+    return activePharmacySales.filter(rec => rec.userName === selectedUserFilter);
+  }, [activePharmacySales, selectedUserFilter]);
 
   // --- 5F. Dynamic sales metrics ---
   const salesMetrics = useMemo(() => {
@@ -1722,7 +2005,7 @@ export default function App() {
     let monthlyCount = 0;
     let yearlyCount = 0;
 
-    salesRecords.forEach((rec) => {
+    activePharmacySales.forEach((rec) => {
       const recDateMs = new Date(rec.date).getTime();
       const diffDays = (nowMs - recDateMs) / oneDayMs;
 
@@ -2147,26 +2430,6 @@ export default function App() {
           {/* Form */}
           <div className="p-6">
             
-            {/* Public Pitch Deck Access Banner */}
-            <div className="bg-emerald-50/50 border border-emerald-100/80 rounded-xl p-3.5 mb-5 flex items-center justify-between gap-3 text-xs">
-              <div className="flex gap-2">
-                <Sparkles className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                <div className="space-y-0.5">
-                  <p className="font-bold text-slate-900">Pocket Pharmacy B2B Vision</p>
-                  <p className="text-slate-500 text-[11px] leading-relaxed">
-                    Access our public B2B Investor Pitch Deck to learn more about our inventory optimizer & clinical tools.
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsPitchDeckOpen(true)}
-                className="bg-[#0a4a3a] hover:bg-[#073a2e] text-white text-[11px] font-bold px-3 py-2 rounded-lg whitespace-nowrap shadow-sm transition-all active:scale-95 hover:shadow"
-              >
-                Open Deck
-              </button>
-            </div>
-            
             {/* Segmented Switcher */}
             <div className="flex bg-slate-100 p-1 rounded-xl mb-6 border border-slate-200/60">
               <button
@@ -2199,9 +2462,10 @@ export default function App() {
                   <div className="relative">
                     <input
                       type="text"
+                      required
                       value={loginUsername}
                       onChange={(e) => setLoginUsername(e.target.value)}
-                      placeholder="e.g. cashier or superadmin"
+                      placeholder="e.g. cashier, admin or superadmin"
                       className="w-full bg-slate-50 text-slate-900 text-sm px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0a4a3a]/20 focus:border-[#0a4a3a] transition-all font-mono"
                     />
                     <div className="absolute inset-y-0 right-4 flex items-center">
@@ -2211,96 +2475,33 @@ export default function App() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold tracking-wider text-slate-500 uppercase block">4-DIGIT SECURITY PIN</label>
+                  <label className="text-[10px] font-bold tracking-wider text-slate-500 uppercase block">SECURITY PASSWORD (6-10 CHARS)</label>
                   <div className="relative">
                     <input
                       type="password"
-                      maxLength={8}
+                      required
+                      minLength={6}
+                      maxLength={10}
                       value={pinCode}
                       onChange={(e) => setPinCode(e.target.value)}
-                      placeholder="••••"
-                      className="w-full bg-slate-50 text-slate-900 font-mono text-center tracking-widest text-2xl font-bold p-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0a4a3a]/20 focus:border-[#0a4a3a] transition-all"
+                      placeholder="e.g. Super1@ or Cash1$"
+                      className="w-full bg-slate-50 text-slate-900 font-mono text-sm px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0a4a3a]/20 focus:border-[#0a4a3a] transition-all font-bold"
                     />
                     <div className="absolute inset-y-0 right-4 flex items-center">
                       <Lock className="w-4 h-4 text-slate-400" />
                     </div>
                   </div>
+                  <p className="text-[10px] text-slate-400 font-mono">Must contain 6-10 chars with letters, numbers & special symbol</p>
                 </div>
 
                 {pinError && (
                   <p className="text-red-600 text-xs text-center font-semibold mt-1 bg-red-50 py-1.5 rounded-lg border border-red-100">{pinError}</p>
                 )}
 
-                {/* Physical Keypad */}
-                <div className="grid grid-cols-3 gap-1.5 pt-1">
-                  {["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "ENTER"].map((num) => {
-                    const isSpecial = num === "C" || num === "ENTER";
-                    return (
-                      <button
-                        key={num}
-                        type="button"
-                        onClick={() => handleKeypadPress(num)}
-                        className={`h-11 rounded-lg text-base font-bold font-mono transition-all flex items-center justify-center active:scale-95 ${
-                          isSpecial 
-                            ? num === "C" 
-                               ? "bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100" 
-                               : "bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-sans"
-                            : "bg-slate-50 text-slate-800 border border-slate-200 hover:bg-slate-100"
-                        }`}
-                      >
-                        {num}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Quick login chips to facilitate instant grading & testing */}
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60 space-y-2">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block text-center">⚡ QUICK MULTI-TENANT ROLES</span>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setLoginUsername("cashier");
-                        setPinCode("1234");
-                        setPinError("");
-                      }}
-                      className="bg-white hover:bg-emerald-50 border border-slate-200 text-[10px] py-1.5 px-1 rounded-lg font-bold text-slate-700 hover:text-[#0a4a3a] hover:border-emerald-300 transition-all flex flex-col items-center"
-                    >
-                      <span>Cashier</span>
-                      <span className="text-[8px] text-slate-400 font-mono mt-0.5">PIN: 1234</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setLoginUsername("admin");
-                        setPinCode("4321");
-                        setPinError("");
-                      }}
-                      className="bg-white hover:bg-emerald-50 border border-slate-200 text-[10px] py-1.5 px-1 rounded-lg font-bold text-slate-700 hover:text-[#0a4a3a] hover:border-emerald-300 transition-all flex flex-col items-center"
-                    >
-                      <span>Admin</span>
-                      <span className="text-[8px] text-slate-400 font-mono mt-0.5">PIN: 4321</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setLoginUsername("superadmin");
-                        setPinCode("1245");
-                        setPinError("");
-                      }}
-                      className="bg-white hover:bg-emerald-50 border border-slate-200 text-[10px] py-1.5 px-1 rounded-lg font-bold text-slate-700 hover:text-[#0a4a3a] hover:border-emerald-300 transition-all flex flex-col items-center"
-                    >
-                      <span>Super Admin</span>
-                      <span className="text-[8px] text-slate-400 font-mono mt-0.5">PIN: 1245</span>
-                    </button>
-                  </div>
-                </div>
-
                 <button
                   type="submit"
                   disabled={pinCode.length === 0}
-                  className="w-full bg-[#0a4a3a] hover:bg-[#073a2e] disabled:bg-slate-300 text-white font-semibold text-sm p-3.5 rounded-xl shadow-md transition-all transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95 flex items-center justify-center gap-2"
+                  className="w-full bg-[#0a4a3a] hover:bg-[#073a2e] disabled:bg-slate-300 text-white font-semibold text-sm p-3.5 rounded-xl shadow-md transition-all transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95 flex items-center justify-center gap-2 mt-2"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   Unlock Secure Terminal
@@ -2394,15 +2595,16 @@ export default function App() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold tracking-wider text-slate-500 uppercase block">DESIRED 4-DIGIT PIN</label>
+                    <label className="text-[10px] font-bold tracking-wider text-slate-500 uppercase block">DESIRED PASSWORD (6-10 CHARS)</label>
                     <input
-                      type="text"
+                      type="password"
                       required
-                      maxLength={4}
-                      placeholder="e.g. 5555"
+                      minLength={6}
+                      maxLength={10}
+                      placeholder="e.g. Super1@"
                       value={regPin}
                       onChange={(e) => setRegPin(e.target.value)}
-                      className="w-full bg-slate-50 text-slate-900 text-xs p-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0a4a3a]/20 font-mono focus:border-[#0a4a3a] text-center font-bold tracking-widest"
+                      className="w-full bg-slate-50 text-slate-900 text-xs p-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0a4a3a]/20 font-mono focus:border-[#0a4a3a] font-bold tracking-wider"
                     />
                   </div>
                 </div>
@@ -2419,29 +2621,6 @@ export default function App() {
 
           </div>
         </motion.div>
-        
-        {/* Footnote & Investor Mode Pitch Deck */}
-        <div className="mt-8 text-center text-slate-500 text-xs flex flex-col items-center gap-4">
-          <button
-            type="button"
-            onClick={() => setIsPitchDeckOpen(true)}
-            className="bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 hover:from-amber-600 hover:via-orange-600 hover:to-rose-600 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-lg transition-all transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95 flex items-center gap-2 border border-amber-400"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-200 animate-pulse" />
-            <span>🚀 Read B2B Pitch Deck (Investor Mode)</span>
-          </button>
-          <p>© 2026 Pocket Pharmacy • Clinical Inventory System v2.5</p>
-        </div>
-
-        {/* --- Pitch Deck Presentation Overlay for logged out users --- */}
-        <AnimatePresence>
-          {isPitchDeckOpen && (
-            <PitchDeck 
-              isOpen={isPitchDeckOpen} 
-              onClose={() => setIsPitchDeckOpen(false)} 
-            />
-          )}
-        </AnimatePresence>
       </div>
     );
   }
@@ -2512,7 +2691,7 @@ export default function App() {
             </div>
 
             {/* Controls */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4">
               
               {/* Profile Indicator */}
               <div className="bg-emerald-950 px-3.5 py-2 rounded-xl border border-emerald-800 flex items-center gap-2">
@@ -2544,87 +2723,15 @@ export default function App() {
 
       {/* 2. Main Content Grid */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
-        
-        {/* PROMINENT OFFLINE/ONLINE DATABASE SYNCHRONIZATION STATUS BAR */}
-        <div className={`rounded-2xl border p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-5 transition-all duration-300 shadow-sm ${
-          dbStatus === "connected" 
-            ? "bg-emerald-50/80 border-emerald-200" 
-            : dbStatus === "connecting" 
-              ? "bg-amber-50/80 border-amber-200" 
-              : "bg-blue-50/80 border-blue-200"
-        }`}>
-          <div className="flex gap-4 items-start">
-            <div className={`p-3 rounded-xl flex items-center justify-center border shadow-sm ${
-              dbStatus === "connected"
-                ? "bg-emerald-100 text-[#0a4a3a] border-emerald-200"
-                : dbStatus === "connecting"
-                  ? "bg-amber-100 text-amber-800 border-amber-200 animate-pulse"
-                  : "bg-blue-100 text-blue-800 border-blue-200"
-            }`}>
-              <RefreshCw className={`w-6 h-6 ${dbStatus === "connecting" ? "animate-spin" : ""}`} />
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <span className="text-[10px] font-mono font-extrabold uppercase tracking-widest text-slate-500">Terminal Connection & Sync</span>
-                <span className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded-full border ${
-                  isOnline 
-                    ? "bg-emerald-100 text-emerald-800 border-emerald-200" 
-                    : "bg-rose-100 text-rose-850 border-rose-200"
-                }`}>
-                  {isOnline ? "● Device Online" : "○ Device Offline"}
-                </span>
-                <span className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded-full border ${
-                  dbStatus === "connected" 
-                    ? "bg-emerald-100 text-emerald-800 border-emerald-200" 
-                    : dbStatus === "connecting" 
-                      ? "bg-amber-100 text-amber-800 border-amber-200" 
-                      : "bg-blue-100 text-blue-800 border-blue-200"
-                }`}>
-                  {dbStatus === "connected" && "Cloud Synced (Supabase)"}
-                  {dbStatus === "connecting" && "Synchronizing with Server..."}
-                  {dbStatus === "local_fallback" && "Local Storage Only (Offline)"}
-                </span>
-              </div>
-              <h3 className="text-sm font-bold text-slate-900">
-                {dbStatus === "connected" ? "Your inventory is fully synchronized in real-time." : "Running safely in Local Offline Mode."}
-              </h3>
-              <p className="text-xs text-slate-600 max-w-3xl leading-relaxed">
-                <strong>No Internet? No problem!</strong> Every stock adjustment, sale, and invoice is recorded locally on this terminal. The system automatically synchronizes state back-and-forth across all users under the super admin as soon as your connection is established.
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={triggerManualSync}
-            className={`w-full md:w-auto px-5 py-3 rounded-xl text-xs font-bold transition-all duration-150 flex items-center justify-center gap-2.5 shadow-md active:scale-[0.98] border ${
-              dbStatus === "connected"
-                ? "bg-[#0a4a3a] hover:bg-emerald-900 text-white border-emerald-600"
-                : dbStatus === "connecting"
-                  ? "bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-400"
-                  : "bg-blue-700 hover:bg-blue-800 text-white border-blue-600"
-            }`}
-            title="Initiate instant database synchronization"
-          >
-            <RefreshCw className={`w-4 h-4 ${dbStatus === "connecting" ? "animate-spin" : ""}`} />
-            Sync Database Now
-          </button>
-        </div>
 
         {/* Banner Alert for Emergency Medical Supplies / POM Rules */}
-        <div className="bg-slate-900 border-l-4 border-amber-500 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-slate-100 shadow-sm">
-          <div className="flex gap-3">
-            <div className="bg-amber-500/10 p-2.5 rounded-lg text-amber-400 mt-0.5 md:mt-0">
-              <AlertTriangle className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-xs text-slate-400 font-mono uppercase tracking-widest leading-none font-bold">Lagos Pharmacovigilance Regulatory Guideline</p>
-              <h3 className="text-sm font-semibold text-white mt-1">Prescription-Only Medicine (POM) Verification Requirement</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Please request a valid Medical Council registration prescription for any molecules tagged with red <span className="bg-red-950 border border-red-800 text-red-300 px-1 py-0.5 rounded font-mono font-bold text-[9px]">POM</span>.</p>
-            </div>
+        <div className="bg-slate-900 border-l-4 border-amber-500 rounded-xl p-3 sm:p-3.5 flex items-center gap-3 text-slate-100 shadow-sm">
+          <div className="bg-amber-500/10 p-2 rounded-lg text-amber-400 shrink-0">
+            <AlertTriangle className="w-4 h-4" />
           </div>
-          <div className="text-xs font-mono font-bold bg-[#0a4a3a] text-emerald-300 px-3 py-1.5 rounded-lg flex items-center gap-2 border border-emerald-800">
-            <Clock className="w-3.5 h-3.5" />
-            Lagos: GMT+1
-          </div>
+          <p className="text-xs sm:text-sm font-medium text-slate-200">
+            Please request a valid prescription for any medicines tagged with red <span className="bg-red-950 border border-red-800 text-red-300 px-1.5 py-0.5 rounded font-mono font-bold text-[10px]">POM</span>.
+          </p>
         </div>
 
         {/* Clinical Alerts Notification Center */}
@@ -2815,7 +2922,7 @@ export default function App() {
             </div>
 
             {/* Product Cards Catalog Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-2">
               <AnimatePresence>
                 {filteredProducts.length > 0 ? (
                   filteredProducts.map((p) => {
@@ -2829,92 +2936,78 @@ export default function App() {
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0 }}
                         key={p.id}
-                        className={`bg-white rounded-2xl p-5 border shadow-sm transition-all flex flex-col justify-between ${
+                        className={`bg-white rounded-lg p-2.5 border shadow-2xs transition-all flex flex-col justify-between ${
                           isOutOfStock 
                             ? "border-slate-200 opacity-60 bg-slate-50" 
                             : isLowStock 
                               ? "border-red-200 hover:border-red-400" 
-                              : "border-slate-200 hover:border-[#0a4a3a] hover:shadow-md"
+                              : "border-slate-200 hover:border-[#0a4a3a] hover:shadow-sm"
                         }`}
                       >
                         <div>
-                          {/* Card tags */}
-                          <div className="flex flex-wrap gap-1.5 justify-between items-start mb-2">
-                            <div className="flex flex-wrap gap-1">
-                              <span className="text-[10px] font-mono tracking-wider bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-bold uppercase">
-                                {p.category}
-                              </span>
-                              {p.drug_type && (
-                                <span className="text-[10px] font-mono tracking-wider bg-emerald-50 text-[#0a4a3a] border border-emerald-100 px-2 py-0.5 rounded font-bold uppercase">
-                                  {p.drug_type}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex gap-1">
+                          {/* Tags row */}
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <span className="text-[8px] font-mono tracking-wider bg-slate-100 text-slate-600 px-1 py-0.2 rounded font-bold uppercase truncate max-w-[80px]">
+                              {p.drug_type || p.category}
+                            </span>
+                            <div className="flex items-center gap-0.5 shrink-0">
                               {p.pom && (
-                                <span className="text-[9px] font-mono bg-red-50 text-red-600 border border-red-200 px-1.5 py-0.5 rounded font-bold">
+                                <span className="text-[7px] font-mono bg-red-100 text-red-700 border border-red-200 px-1 py-0.2 rounded font-extrabold">
                                   POM
                                 </span>
                               )}
-                              <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold ${
+                              <span className={`text-[8px] font-mono px-1 py-0.2 rounded font-bold ${
                                 isOutOfStock 
                                   ? "bg-slate-200 text-slate-600" 
                                   : isLowStock 
-                                    ? "bg-red-100 text-red-700 animate-pulse" 
+                                    ? "bg-red-100 text-red-700" 
                                     : "bg-emerald-50 text-emerald-800"
                               }`}>
-                                {isOutOfStock ? "Out Of Stock" : `Stock: ${p.quantity}`}
+                                {isOutOfStock ? "Out" : `${p.quantity}`}
                               </span>
                             </div>
                           </div>
 
-                          <h3 className="font-display font-bold text-slate-900 text-base">{p.name}</h3>
-                          <p className="text-xs text-slate-500 font-mono mt-1 italic">{p.api_molecule}</p>
+                          <h3 className="font-display font-bold text-slate-900 text-xs truncate" title={p.name}>{p.name}</h3>
+                          <p className="text-[10px] text-slate-500 font-mono truncate" title={p.api_molecule}>{p.api_molecule}</p>
 
-                          {/* Expiry & Low Stock Threshold Metadata */}
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2.5 text-[10px] font-mono">
-                            {p.expiry_month && p.expiry_year && (
-                              <span className="bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-bold flex items-center gap-1">
-                                <Clock className="w-3 h-3 text-amber-600" />
-                                EXP: {String(p.expiry_month).padStart(2, "0")}/{p.expiry_year}
-                              </span>
-                            )}
-                            <span className="bg-slate-50 text-slate-500 border border-slate-200 px-1.5 py-0.5 rounded font-bold">
-                              LIMIT: {threshold}
-                            </span>
-                          </div>
+                          {/* Expiry Badge */}
+                          {p.expiry_month && p.expiry_year && (
+                            <div className="mt-1 text-[8px] font-mono text-slate-400 flex items-center gap-0.5">
+                              <Clock className="w-2 h-2 text-amber-500" />
+                              <span>EXP: {String(p.expiry_month).padStart(2, "0")}/{p.expiry_year}</span>
+                            </div>
+                          )}
                         </div>
 
-                        <div className="mt-5 pt-3 border-t border-slate-100 flex justify-between items-center">
+                        <div className="mt-2 pt-1.5 border-t border-slate-100 flex justify-between items-center gap-1">
                           <div>
-                            <span className="text-[10px] text-slate-400 uppercase font-mono block">Wholesale B2B Price</span>
-                            <span className="text-lg font-bold text-[#0a4a3a] font-mono">
+                            <span className="text-xs font-extrabold text-[#0a4a3a] font-mono block">
                               ₦{p.price.toLocaleString("en-NG")}
                             </span>
                           </div>
 
-                          <div className="flex items-center gap-1">
-                            {/* Gemini consult trigger */}
+                          <div className="flex items-center gap-1 shrink-0">
                             {(currentRole === "admin" || currentRole === "super_admin") && (
                               <button
                                 onClick={() => requestAiConsult(p)}
-                                className="bg-emerald-50 text-[#0a4a3a] border border-emerald-200 p-2 rounded-xl hover:bg-[#0a4a3a] hover:text-white transition-all flex items-center justify-center"
+                                className="bg-emerald-50 text-[#0a4a3a] border border-emerald-200 p-1 rounded-md hover:bg-[#0a4a3a] hover:text-white transition-all flex items-center justify-center"
                                 title="Run GPharm AI Clinical Consult"
                               >
-                                <Sparkles className="w-4 h-4 text-amber-500" />
+                                <Sparkles className="w-3 h-3 text-amber-500" />
                               </button>
                             )}
 
                             <button
                               disabled={isOutOfStock}
                               onClick={() => addToCart(p)}
-                              className={`px-3 py-2 rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-all ${
+                              className={`px-2 py-1 rounded-md font-bold text-[10px] flex items-center gap-0.5 transition-all ${
                                 isOutOfStock 
                                   ? "bg-slate-200 text-slate-400 cursor-not-allowed" 
-                                  : "bg-[#0a4a3a] hover:bg-[#073a2e] text-white hover:shadow-lg active:scale-95"
+                                  : "bg-[#0a4a3a] hover:bg-[#073a2e] text-white active:scale-95"
                               }`}
                             >
-                              <ShoppingCart className="w-3.5 h-3.5" />
+                              <ShoppingCart className="w-2.5 h-2.5" />
                               Add
                             </button>
                           </div>
@@ -3125,7 +3218,6 @@ export default function App() {
               </div>
               <div>
                 <h2 className="text-xl font-bold font-display text-white">Staff AI Consult Terminal</h2>
-                <p className="text-xs text-emerald-200/80 font-mono">Powered by Gemini 1.5/3.5 Flash — Professional Lagos clinical support model</p>
               </div>
             </div>
             
@@ -3154,8 +3246,7 @@ export default function App() {
               
               {/* Form Input Side */}
               <div className="lg:col-span-5 p-6 space-y-4">
-                <h4 className="font-bold text-sm text-slate-900 uppercase tracking-wide font-mono">Ask Lagos Pharmacy Advisor</h4>
-                <p className="text-xs text-slate-500">Query clinical bio-equivalents and Lagos market price indexes instantly.</p>
+                <p className="text-xs text-slate-500">Check clinical bio-equivalents and market price instantly.</p>
                 
                 <form onSubmit={submitCustomAiQuery} className="space-y-4 pt-2">
                   <div className="space-y-1">
@@ -3178,22 +3269,6 @@ export default function App() {
                     </div>
                   </div>
                 </form>
-
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-                  <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-slate-500 block">Quick Preset Triggers</span>
-                  <div className="flex flex-wrap gap-2">
-                    {products.slice(0, 5).map((p) => (
-                      <button
-                        key={p.id}
-                        onClick={() => requestAiConsult(p)}
-                        className="bg-white border border-slate-200 text-slate-700 hover:border-[#0a4a3a] hover:text-[#0a4a3a] text-xs font-medium px-3 py-1.5 rounded-lg shadow-sm transition-all text-left flex items-center justify-between gap-1"
-                      >
-                        <span className="truncate max-w-[120px]">{p.name}</span>
-                        <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
 
               {/* Response Output Side */}
@@ -3276,7 +3351,8 @@ export default function App() {
                   { id: "sales", label: "📊 Sales Dashboard", icon: BarChart3 },
                   { id: "stocktake", label: "📋 Stock Auditor", icon: Layers },
                   { id: "frequencies", label: "⏰ Audit Scheduler & Logs", icon: Calendar },
-                  { id: "staff", label: "👥 Staff & Features Directory", icon: Users }
+                  { id: "staff", label: "👥 Staff & Features Directory", icon: Users },
+                  { id: "pharmacy_profile", label: "🏢 Pharmacy Workspace Profile", icon: Building2 }
                 ].map((tab) => {
                   const Icon = tab.icon;
                   const isActive = superAdminTab === tab.id;
@@ -3305,29 +3381,29 @@ export default function App() {
               {superAdminTab === "sales" && (
                 <div className="space-y-6">
                   {/* KPI Metrics Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
-                      { title: "Today's Clinical Revenue", amount: salesMetrics.daily.total, count: salesMetrics.daily.count, color: "from-emerald-500/10 to-teal-500/5", border: "border-emerald-500/20", icon: DollarSign, text: "text-emerald-400" },
-                      { title: "Weekly Clinical Revenue", amount: salesMetrics.weekly.total, count: salesMetrics.weekly.count, color: "from-cyan-500/10 to-blue-500/5", border: "border-cyan-500/20", icon: TrendingUp, text: "text-cyan-400" },
-                      { title: "Monthly Clinical Revenue", amount: salesMetrics.monthly.total, count: salesMetrics.monthly.count, color: "from-indigo-500/10 to-purple-500/5", border: "border-indigo-500/20", icon: BarChart3, text: "text-indigo-400" },
-                      { title: "Annual Ledger Forecast", amount: salesMetrics.yearly.total, count: salesMetrics.yearly.count, color: "from-amber-500/10 to-orange-500/5", border: "border-amber-500/20", icon: Layers, text: "text-amber-400" }
+                      { title: "Today's Revenue", amount: salesMetrics.daily.total, count: salesMetrics.daily.count, color: "from-emerald-500/10 to-teal-500/5", border: "border-emerald-500/20", icon: DollarSign, text: "text-emerald-400" },
+                      { title: "Weekly Revenue", amount: salesMetrics.weekly.total, count: salesMetrics.weekly.count, color: "from-cyan-500/10 to-blue-500/5", border: "border-cyan-500/20", icon: TrendingUp, text: "text-cyan-400" },
+                      { title: "Monthly Revenue", amount: salesMetrics.monthly.total, count: salesMetrics.monthly.count, color: "from-indigo-500/10 to-purple-500/5", border: "border-indigo-500/20", icon: BarChart3, text: "text-indigo-400" },
+                      { title: "Annual Forecast", amount: salesMetrics.yearly.total, count: salesMetrics.yearly.count, color: "from-amber-500/10 to-orange-500/5", border: "border-amber-500/20", icon: Layers, text: "text-amber-400" }
                     ].map((metric, i) => {
                       const Icon = metric.icon;
                       return (
-                        <div key={i} className={`bg-gradient-to-br ${metric.color} p-5 rounded-2xl border ${metric.border} flex flex-col justify-between`}>
-                          <div className="flex justify-between items-start">
-                            <span className="text-xs font-mono uppercase text-slate-400 tracking-wider">{metric.title}</span>
-                            <div className="bg-slate-950 p-2 rounded-lg border border-slate-800">
-                              <Icon className={`w-4 h-4 ${metric.text}`} />
+                        <div key={i} className={`bg-gradient-to-br ${metric.color} p-2.5 rounded-xl border ${metric.border} flex flex-col justify-between`}>
+                          <div className="flex justify-between items-center gap-1">
+                            <span className="text-[10px] font-mono uppercase text-slate-400 tracking-tight font-bold truncate">{metric.title}</span>
+                            <div className="bg-slate-950 p-1 rounded border border-slate-800 shrink-0">
+                              <Icon className={`w-3 h-3 ${metric.text}`} />
                             </div>
                           </div>
-                          <div className="mt-4">
-                            <span className="text-2xl font-bold font-mono tracking-tight text-white block">
+                          <div className="mt-1.5">
+                            <span className="text-sm font-extrabold font-mono tracking-tight text-white block leading-none">
                               ₦{metric.amount.toLocaleString("en-NG")}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1.5 mt-1.5">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                              {metric.count} Verified Invoices Issued
+                            <span className="text-[9px] text-slate-400 font-mono flex items-center gap-1 mt-1 leading-none">
+                              <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                              {metric.count} Invoices
                             </span>
                           </div>
                         </div>
@@ -3514,7 +3590,7 @@ export default function App() {
                     {auditSearchQuery && (
                       <div className="text-[11px] font-mono text-slate-400 whitespace-nowrap">
                         Found <span className="text-cyan-400 font-bold">{
-                          products.filter(p => {
+                          activePharmacyProducts.filter(p => {
                             const q = auditSearchQuery.toLowerCase().trim();
                             return p.name.toLowerCase().includes(q) || p.api_molecule.toLowerCase().includes(q) || p.category.toLowerCase().includes(q);
                           }).length
@@ -3538,7 +3614,7 @@ export default function App() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-850">
-                          {products.filter((p) => {
+                          {activePharmacyProducts.filter((p) => {
                             const q = auditSearchQuery.trim().toLowerCase();
                             if (!q) return true;
                             return p.name.toLowerCase().includes(q) || 
@@ -3619,7 +3695,7 @@ export default function App() {
                               </tr>
                             );
                           })}
-                          {products.filter((p) => {
+                          {activePharmacyProducts.filter((p) => {
                             const q = auditSearchQuery.trim().toLowerCase();
                             if (!q) return true;
                             return p.name.toLowerCase().includes(q) || 
@@ -3772,8 +3848,8 @@ export default function App() {
                     <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-3">
                       <h5 className="text-xs font-bold text-slate-300 font-mono uppercase tracking-wider">Active Recurrent Schedules</h5>
                       <div className="space-y-2.5 max-h-[250px] overflow-y-auto pr-1">
-                        {stockTakingFrequencies.length > 0 ? (
-                          stockTakingFrequencies.map((f) => (
+                        {activePharmacyFrequencies.length > 0 ? (
+                          activePharmacyFrequencies.map((f) => (
                             <div key={f.id} className="bg-slate-900 p-3.5 rounded-xl border border-slate-850 space-y-2.5 transition-all hover:border-slate-750">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="space-y-1">
@@ -3884,8 +3960,8 @@ export default function App() {
                       {/* Subtab 1: Reconciliation logs */}
                       {freqSubTab === "history" && (
                         <>
-                          {stockAuditHistory.length > 0 ? (
-                            stockAuditHistory.map((audit) => {
+                          {activePharmacyAudits.length > 0 ? (
+                            activePharmacyAudits.map((audit) => {
                               const isShortage = audit.discrepancy < 0;
                               return (
                                 <div key={audit.id} className="bg-slate-900 p-4 rounded-xl border border-slate-850 space-y-2.5">
@@ -4220,6 +4296,162 @@ export default function App() {
                 </div>
               )}
 
+              {/* ==================== PANEL 5: PHARMACY WORKSPACE PROFILE & ISOLATION ==================== */}
+              {superAdminTab === "pharmacy_profile" && (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-6 animate-fade-in font-sans">
+                  {/* LEFT COLUMN: PHARMACY DETAILS FORM */}
+                  <div className="lg:col-span-6 bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-4">
+                    <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
+                      <Building2 className="w-5 h-5 text-cyan-400" />
+                      <div>
+                        <h4 className="font-bold text-sm text-white">Pharmacy Business Profile</h4>
+                        <p className="text-[11px] text-slate-400">Update company identity, director contact info, and HQ address.</p>
+                      </div>
+                    </div>
+
+                    <form onSubmit={handleSavePharmacyProfile} className="space-y-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">Pharmacy Brand Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={editPharmName}
+                          onChange={(e) => setEditPharmName(e.target.value)}
+                          placeholder="e.g. MedPlus Pharmacy Lagos"
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 font-medium"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">Managing Director / Superintendent Pharmacist</label>
+                        <input
+                          type="text"
+                          value={editPharmDirector}
+                          onChange={(e) => setEditPharmDirector(e.target.value)}
+                          placeholder="e.g. Pharm. Chidi Okafor"
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 font-medium"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">Official Phone Contact</label>
+                          <input
+                            type="text"
+                            value={editPharmPhone}
+                            onChange={(e) => setEditPharmPhone(e.target.value)}
+                            placeholder="e.g. +234 803 000 1122"
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 font-mono"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">Official Email Address</label>
+                          <input
+                            type="email"
+                            value={editPharmEmail}
+                            onChange={(e) => setEditPharmEmail(e.target.value)}
+                            placeholder="e.g. info@gpharm.com"
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono block">Headquarter / Primary Location Address</label>
+                        <input
+                          type="text"
+                          value={editPharmLocation}
+                          onChange={(e) => setEditPharmLocation(e.target.value)}
+                          placeholder="e.g. Victoria Island, Lagos"
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition-all duration-150 flex items-center justify-center gap-2 shadow-md active:scale-[0.98] border border-cyan-500"
+                      >
+                        <Check className="w-4 h-4" />
+                        Save Profile Changes
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* RIGHT COLUMN: MULTI-TENANT ISOLATION ARCHITECTURE DISPLAY */}
+                  <div className="lg:col-span-6 bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-4">
+                    <div className="flex items-center gap-2 border-b border-slate-850 pb-3">
+                      <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                      <div>
+                        <h4 className="font-bold text-sm text-white">Database Tenant Isolation Status</h4>
+                        <p className="text-[11px] text-slate-400">Strict cryptographically partitioned cloud & local data separation.</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-3 font-mono text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400 text-[11px]">Active Pharmacy ID:</span>
+                        <span className="text-cyan-400 font-bold bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-[10px]">
+                          {currentPharmacy?.id}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400 text-[11px]">Data Partitioning:</span>
+                        <span className="text-emerald-400 font-bold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800 text-[10px] flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          Isolated Tenant Context
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400 text-[11px]">Cloud Database Sync:</span>
+                        <span className="text-cyan-300 font-bold bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-800 text-[10px]">
+                          Filtered by pharmacyId
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="bg-emerald-950/20 border border-emerald-800/40 p-4 rounded-xl space-y-2">
+                      <h5 className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                        Multi-Pharmacy Data Security Guarantee
+                      </h5>
+                      <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
+                        All sales records, clinical stock inventory, audit logs, and user credentials saved under <strong className="text-white">{currentPharmacy?.name}</strong> are tagged exclusively with workspace ID <code className="text-cyan-300 font-mono text-[10px]">{currentPharmacy?.id}</code>. Other pharmacies logged into this application cannot view, edit, or access your data in memory, storage, or cloud database queries.
+                      </p>
+                    </div>
+
+                    <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-2">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase font-mono tracking-wider block">Registered Pharmacy Workspaces</span>
+                      <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
+                        {pharmacies.map(p => (
+                          <div
+                            key={p.id}
+                            className={`p-2.5 rounded-lg border text-xs flex items-center justify-between font-sans transition-all ${
+                              p.id === currentPharmacy?.id
+                                ? "bg-slate-950 border-cyan-500/50 text-white"
+                                : "bg-slate-950/50 border-slate-800 text-slate-400"
+                            }`}
+                          >
+                            <div>
+                              <div className="font-bold flex items-center gap-1.5">
+                                {p.name}
+                                {p.id === currentPharmacy?.id && (
+                                  <span className="bg-cyan-500/20 text-cyan-300 text-[8px] font-mono px-1.5 py-0.2 rounded border border-cyan-500/30">CURRENT</span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-slate-500 font-mono">{p.location || "Lagos HQ"}</div>
+                            </div>
+                            <span className="text-[9px] font-mono text-slate-500">{p.id}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
             </div>
           </section>
         )}
@@ -4271,15 +4503,6 @@ export default function App() {
                 <Plus className="w-4.5 h-4.5" />
                 Add Single Medicine
               </button>
-
-              <button
-                onClick={triggerManualSync}
-                className="bg-emerald-900 hover:bg-emerald-800 border border-emerald-700 text-emerald-300 hover:text-white px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-md"
-                title="Sync and refresh stock database from Cloud"
-              >
-                <RefreshCw className={`w-4 h-4 ${dbStatus === "connecting" ? "animate-spin" : ""}`} />
-                Sync with Cloud
-              </button>
             </div>
           </div>
 
@@ -4292,6 +4515,126 @@ export default function App() {
             <span className="text-slate-500 shrink-0 font-bold ml-2">GPharm Node Core Online</span>
           </div>
 
+          {/* Inventory Financial & Stock Metrics Summary Bar */}
+          <div className="bg-slate-950 p-4 border-b border-slate-800 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Total Products */}
+            <div className="bg-slate-900 border border-slate-800/80 rounded-xl p-3.5 flex items-center justify-between shadow-sm">
+              <div>
+                <span className="text-[10px] uppercase font-mono font-bold tracking-wider text-slate-400 block mb-0.5">Total Inventory Products</span>
+                <div className="text-lg font-bold text-white font-mono flex items-baseline gap-1.5">
+                  <span>{inventoryMetrics.totalProductsCount}</span>
+                  <span className="text-xs text-emerald-400 font-sans font-medium">Medicines</span>
+                </div>
+                <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
+                  {inventoryMetrics.totalUnitsCount.toLocaleString("en-NG")} total units in stock
+                </span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                <Layers className="w-5 h-5" />
+              </div>
+            </div>
+
+            {/* Total Inventory Cost */}
+            <div className="bg-slate-900 border border-slate-800/80 rounded-xl p-3.5 flex items-center justify-between shadow-sm">
+              <div>
+                <span className="text-[10px] uppercase font-mono font-bold tracking-wider text-slate-400 block mb-0.5">Total Inventory Cost</span>
+                <div className="text-lg font-bold text-amber-400 font-mono">
+                  ₦{inventoryMetrics.totalCostValue.toLocaleString("en-NG")}
+                </div>
+                <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
+                  Total purchasing cost of inventory
+                </span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                <Coins className="w-5 h-5" />
+              </div>
+            </div>
+
+            {/* Total Sales Value */}
+            <div className="bg-slate-900 border border-slate-800/80 rounded-xl p-3.5 flex items-center justify-between shadow-sm">
+              <div>
+                <span className="text-[10px] uppercase font-mono font-bold tracking-wider text-slate-400 block mb-0.5">Total Sales Value</span>
+                <div className="text-lg font-bold text-emerald-400 font-mono">
+                  ₦{inventoryMetrics.totalSalesValue.toLocaleString("en-NG")}
+                </div>
+                <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
+                  Expected revenue at selling price
+                </span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                <TrendingUp className="w-5 h-5" />
+              </div>
+            </div>
+
+            {/* Potential Profit */}
+            <div className="bg-slate-900 border border-slate-800/80 rounded-xl p-3.5 flex items-center justify-between shadow-sm">
+              <div>
+                <span className="text-[10px] uppercase font-mono font-bold tracking-wider text-slate-400 block mb-0.5">Potential Profit</span>
+                <div className="text-lg font-bold text-cyan-400 font-mono">
+                  ₦{inventoryMetrics.totalPotentialProfit.toLocaleString("en-NG")}
+                </div>
+                <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
+                  Net margin across inventory
+                </span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
+                <Sparkles className="w-5 h-5" />
+              </div>
+            </div>
+          </div>
+
+          {/* Master Inventory Search & Display Control Bar */}
+          <div className="p-4 bg-slate-900 border-b border-slate-800 space-y-3 font-sans">
+            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+              {/* Prominent Wide Search Bar */}
+              <div className="relative flex-1">
+                <Search className="w-5 h-5 text-emerald-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={masterInventorySearchQuery}
+                  onChange={(e) => setMasterInventorySearchQuery(e.target.value)}
+                  placeholder="🔍 Search inventory by Brand Name, API Molecule, Category, or Drug Type..."
+                  className="w-full bg-slate-950 border-2 border-emerald-500/70 focus:border-emerald-400 rounded-xl pl-11 pr-10 py-3 text-sm text-white font-medium placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-inner"
+                />
+                {masterInventorySearchQuery && (
+                  <button
+                    onClick={() => setMasterInventorySearchQuery("")}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white bg-slate-800 p-1 rounded-full transition-all"
+                    title="Clear search query"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Toggle button / count indicator */}
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => setShowAllInventory(!showAllInventory)}
+                  className={`px-4 py-3 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border shadow-md ${
+                    showAllInventory || masterInventorySearchQuery.trim() !== ""
+                      ? "bg-emerald-600 text-white border-emerald-500 hover:bg-emerald-500"
+                      : "bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-750"
+                  }`}
+                >
+                  <Layers className="w-4 h-4 text-emerald-300" />
+                  {showAllInventory || masterInventorySearchQuery.trim() !== ""
+                    ? `Viewing Full Inventory (${activePharmacyProducts.length} items)`
+                    : `Show Full Inventory (${activePharmacyProducts.length} items)`}
+                </button>
+              </div>
+            </div>
+
+            {masterInventorySearchQuery.trim() && (
+              <div className="text-xs text-emerald-400 font-mono flex items-center justify-between px-1">
+                <span>Search matches for "<strong className="text-white">{masterInventorySearchQuery}</strong>":</span>
+                <span className="bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded border border-emerald-800 font-bold">
+                  {filteredInventoryProducts.length} results found
+                </span>
+              </div>
+            )}
+          </div>
+
           {/* Master Table View */}
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
@@ -4300,7 +4643,7 @@ export default function App() {
                   <th className="py-4 px-6 font-bold">Medicine Brand Name</th>
                   <th className="py-4 px-6 font-bold">API Molecule / Ingredient</th>
                   <th className="py-4 px-6 font-bold">Category</th>
-                  <th className="py-4 px-6 font-bold">Wholesale Price</th>
+                  <th className="py-4 px-6 font-bold">Selling & Cost Price</th>
                   <th className="py-4 px-6 font-bold">Stock Status</th>
                   <th className="py-4 px-6 font-bold">Expiry</th>
                   <th className="py-4 px-6 font-bold">POM Req?</th>
@@ -4308,11 +4651,14 @@ export default function App() {
                 </tr>
               </thead>
               <tbody id="inventory-tbody" className="divide-y divide-slate-100 font-sans">
-                {products.length > 0 ? (
-                  products.map((p) => {
+                {filteredInventoryProducts.length > 0 ? (
+                  filteredInventoryProducts.map((p) => {
                     const threshold = p.low_stock_threshold !== undefined ? p.low_stock_threshold : 10;
                     const isLowStock = p.quantity <= threshold;
                     const isOutOfStock = p.quantity <= 0;
+                    const costVal = p.cost_price !== undefined && p.cost_price !== null && !isNaN(p.cost_price)
+                      ? p.cost_price
+                      : Math.round((p.price || 0) * 0.7);
                     return (
                       <tr 
                         key={p.id} 
@@ -4340,8 +4686,14 @@ export default function App() {
                             {p.category}
                           </span>
                         </td>
-                        <td className="py-4 px-6 font-mono font-bold text-[#0a4a3a] text-sm">
-                          ₦{p.price.toLocaleString("en-NG")}
+                        <td className="py-4 px-6 font-mono">
+                          <div className="font-bold text-[#0a4a3a] text-sm">
+                            ₦{p.price.toLocaleString("en-NG")}
+                            <span className="text-[10px] text-slate-400 font-sans font-normal ml-1">Sell</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 font-medium mt-0.5">
+                            Cost: ₦{costVal.toLocaleString("en-NG")}
+                          </div>
                         </td>
                         <td className="py-4 px-6">
                           {isOutOfStock ? (
@@ -4466,33 +4818,30 @@ export default function App() {
 
       </main>
 
-      {/* --- Footer Area --- */}
-      <footer className="bg-slate-900 text-slate-400 py-8 border-t border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 text-center sm:px-6 lg:px-8 space-y-3">
-          <p className="text-xs font-mono">
-            Pocket Pharmacy Node: Secure Terminal. Sync Protocol: Live Replication. Local Backup: Active.
-          </p>
-          <p className="text-xs text-slate-600">
-            For professional pharmaceutical B2B purchase only. All transactions are logged for regulatory compliance.
-          </p>
-        </div>
-      </footer>
-
       {/* --- Add Medicine Modal --- */}
       {isAddProductModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50">
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-lg bg-white rounded-2xl overflow-hidden shadow-2xl border border-slate-200"
+            className="w-full max-w-lg bg-white rounded-2xl overflow-hidden shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto"
           >
-            <div className="bg-[#0a4a3a] text-white p-6">
-              <h3 className="font-display font-bold text-lg">Add New Product to Pocket Pharmacy</h3>
-              <p className="text-emerald-200 text-xs">Fill clinical parameters to update stock lists instantly.</p>
+            <div className="bg-[#0a4a3a] text-white p-5 sm:p-6 flex justify-between items-start">
+              <div>
+                <h3 className="font-display font-bold text-lg">Add New Product to Pocket Pharmacy</h3>
+                <p className="text-emerald-200 text-xs">Fill clinical parameters to update stock lists instantly.</p>
+              </div>
+              <button 
+                onClick={() => setIsAddProductModalOpen(false)}
+                className="text-emerald-200 hover:text-white bg-emerald-900/50 p-1.5 rounded-lg transition-all"
+                title="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <form onSubmit={handleManualFormSubmit} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleManualFormSubmit} className="p-4 sm:p-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-600 block">Brand / Product Name</label>
                   <input
@@ -4504,20 +4853,100 @@ export default function App() {
                     className="w-full bg-slate-50 border border-slate-200 text-sm rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-[#0a4a3a] text-slate-900"
                   />
                 </div>
+
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-600 block">Active Molecule (API)</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Co-amoxiclav"
-                    value={manualForm.api_molecule}
-                    onChange={(e) => setManualForm({ ...manualForm, api_molecule: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 text-sm rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-[#0a4a3a] text-slate-900"
-                  />
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-600 block">
+                      Active Molecule (API) <span className="text-slate-400 font-normal">(Optional)</span>
+                    </label>
+                    {manualForm.api_molecule && (
+                      <button
+                        type="button"
+                        onClick={() => setManualForm({ ...manualForm, api_molecule: "" })}
+                        className="text-[10px] font-bold text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-1.5 py-0.5 rounded transition-all flex items-center gap-0.5"
+                        title="Wipe API value"
+                      >
+                        <X className="w-2.5 h-2.5" /> Wipe API
+                      </button>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="e.g. Co-amoxiclav (optional)"
+                      value={manualForm.api_molecule}
+                      onChange={(e) => setManualForm({ ...manualForm, api_molecule: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 text-sm rounded-xl p-2.5 pr-8 focus:outline-none focus:ring-2 focus:ring-[#0a4a3a] text-slate-900"
+                    />
+                    {manualForm.api_molecule && (
+                      <button
+                        type="button"
+                        onClick={() => setManualForm({ ...manualForm, api_molecule: "" })}
+                        className="absolute right-2 top-2.5 text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-200 transition-all"
+                        title="Wipe API"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              {/* Live Suggested API match banner if name matches system drug knowledge */}
+              {suggestedApiForInput && (
+                <div className="bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl flex items-center justify-between gap-2 text-xs animate-fade-in">
+                  <div className="flex items-center gap-1.5 text-emerald-900 truncate">
+                    <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                    <span className="truncate">
+                      Suggested API for <strong>{manualForm.name}</strong>: <code className="bg-emerald-100 text-emerald-950 font-bold px-1.5 py-0.5 rounded font-mono">{suggestedApiForInput}</code>
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setManualForm(prev => ({ ...prev, api_molecule: suggestedApiForInput }))}
+                    className="bg-[#0a4a3a] hover:bg-[#073a2e] text-white text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all shrink-0 shadow-xs"
+                  >
+                    Apply API
+                  </button>
+                </div>
+              )}
+
+              {/* Related Drugs & APIs in Category Selector */}
+              {categoryRelatedList.length > 0 && (
+                <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
+                    <span className="flex items-center gap-1">
+                      <Layers className="w-3.5 h-3.5 text-[#0a4a3a]" />
+                      Related Drugs & APIs ({manualForm.category})
+                    </span>
+                    <span className="text-[9px] font-mono text-slate-400 font-normal">Click to auto-fill</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
+                    {categoryRelatedList.map((item, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setManualForm({
+                          ...manualForm,
+                          name: item.name,
+                          api_molecule: item.api,
+                          category: item.category || manualForm.category
+                        })}
+                        className="text-[10px] bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 text-slate-700 hover:text-[#0a4a3a] px-2 py-1 rounded-lg font-medium transition-all flex items-center gap-1 text-left shadow-2xs"
+                      >
+                        <span className="font-semibold">{item.name}</span>
+                        {item.api && (
+                          <span className="text-emerald-700 font-mono text-[9px] bg-emerald-50 border border-emerald-100 px-1 py-0.2 rounded">
+                            {item.api}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-600 block">Wholesale Category</label>
                   <select
@@ -4531,19 +4960,51 @@ export default function App() {
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-600 block">Price (₦)</label>
+                  <label className="text-xs font-semibold text-slate-600 block">Drug Type / Formulation</label>
+                  <select
+                    value={manualForm.drug_type}
+                    onChange={(e) => setManualForm({ ...manualForm, drug_type: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 text-sm rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-[#0a4a3a] text-slate-900"
+                  >
+                    {DRUG_TYPES.map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Pricing Section: Cost Price vs Selling Price */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 bg-emerald-50/50 p-3 rounded-xl border border-emerald-100">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700 block flex items-center justify-between">
+                    <span>Unit Cost Price (₦)</span>
+                    <span className="text-[10px] text-slate-400 font-normal">Purchase Cost</span>
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 13000"
+                    value={manualForm.cost_price}
+                    onChange={(e) => setManualForm({ ...manualForm, cost_price: e.target.value })}
+                    className="w-full bg-white border border-slate-200 text-sm rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-[#0a4a3a] text-slate-900 font-mono font-bold"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-[#0a4a3a] block flex items-center justify-between">
+                    <span>Unit Selling Price (₦)</span>
+                    <span className="text-[10px] text-slate-400 font-normal">Retail / Wholesale</span>
+                  </label>
                   <input
                     type="number"
                     required
                     placeholder="e.g. 18500"
                     value={manualForm.price}
                     onChange={(e) => setManualForm({ ...manualForm, price: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 text-sm rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-[#0a4a3a] text-slate-900 font-mono font-bold"
+                    className="w-full bg-white border border-slate-200 text-sm rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-[#0a4a3a] text-slate-900 font-mono font-bold"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-600 block">Quantity (Units)</label>
                   <input
@@ -4568,34 +5029,20 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-600 block">Drug Type / Formulation</label>
-                  <select
-                    value={manualForm.drug_type}
-                    onChange={(e) => setManualForm({ ...manualForm, drug_type: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 text-sm rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-[#0a4a3a] text-slate-900"
-                  >
-                    {DRUG_TYPES.map(type => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex items-center gap-2 pt-5">
-                  <input
-                    type="checkbox"
-                    id="pom"
-                    checked={manualForm.pom}
-                    onChange={(e) => setManualForm({ ...manualForm, pom: e.target.checked })}
-                    className="w-4 h-4 text-[#0a4a3a] focus:ring-[#0a4a3a] border-slate-300 rounded"
-                  />
-                  <label htmlFor="pom" className="text-xs font-bold text-red-700 cursor-pointer select-none">
-                    Requires POM prescription Verification?
-                  </label>
-                </div>
+              <div className="flex items-center gap-2 pt-2">
+                <input
+                  type="checkbox"
+                  id="pom"
+                  checked={manualForm.pom}
+                  onChange={(e) => setManualForm({ ...manualForm, pom: e.target.checked })}
+                  className="w-4 h-4 text-[#0a4a3a] focus:ring-[#0a4a3a] border-slate-300 rounded"
+                />
+                <label htmlFor="pom" className="text-xs font-bold text-red-700 cursor-pointer select-none">
+                  Requires POM prescription Verification?
+                </label>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-600 block">Expiry Month</label>
                   <select
@@ -4638,7 +5085,6 @@ export default function App() {
                   Save Product Record
                 </button>
               </div>
-
             </form>
           </motion.div>
         </div>
