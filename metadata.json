@@ -1,6 +1,6 @@
 {
   "name": "Pocket Pharmacy",
-  "description": "Professional Clinical POS Terminal and Inventory Management System with Gemini AI clinical support.",
+  "description": "Professional Pharmacy POS Terminal and Inventory Management System with Gemini AI pharmacy support.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

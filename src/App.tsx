@@ -159,8 +159,8 @@ const validatePassword = (pass: string): { valid: boolean; message: string } => 
 
 const DEFAULT_PHARMACIES: Pharmacy[] = [
   {
-    id: "gpharm-lagos-hq",
-    name: "GPharm Lagos Headquarters",
+    id: "pocket-pharmacy-hq",
+    name: "Pocket Pharmacy Headquarters",
     directorName: "Dr. Michael Onyeka",
     location: "Lagos, Nigeria",
     phone: "+234 803 123 4567",
@@ -171,7 +171,7 @@ const DEFAULT_PHARMACIES: Pharmacy[] = [
 const DEFAULT_USERS: AppUser[] = [
   {
     id: "user-super",
-    pharmacyId: "gpharm-lagos-hq",
+    pharmacyId: "pocket-pharmacy-hq",
     username: "superadmin",
     pinCode: "Super1@",
     role: "super_admin",
@@ -180,7 +180,7 @@ const DEFAULT_USERS: AppUser[] = [
   },
   {
     id: "user-admin",
-    pharmacyId: "gpharm-lagos-hq",
+    pharmacyId: "pocket-pharmacy-hq",
     username: "admin",
     pinCode: "Admin1#",
     role: "admin",
@@ -189,7 +189,7 @@ const DEFAULT_USERS: AppUser[] = [
   },
   {
     id: "user-cashier",
-    pharmacyId: "gpharm-lagos-hq",
+    pharmacyId: "pocket-pharmacy-hq",
     username: "cashier",
     pinCode: "Cash1$",
     role: "cashier",
@@ -204,16 +204,16 @@ const SUPABASE_KEY = "sb_publishable_-WC3BTgSny08Oya6VmdBlA_znweCfNH";
 
 // Initial mock data focusing on realistic pharmaceutical products in Lagos
 const DEFAULT_PRODUCTS: Product[] = [
-  { id: "1", name: "Amoxil 500mg", api_molecule: "Amoxicillin", category: "Antibiotics", price: 4500, cost_price: 3150, quantity: 24, pom: true, low_stock_threshold: 15, expiry_month: 11, expiry_year: 2026, drug_type: "Capsule", pharmacyId: "gpharm-lagos-hq" },
-  { id: "2", name: "Panadol Extra", api_molecule: "Paracetamol / Caffeine", category: "Analgesics", price: 1200, cost_price: 840, quantity: 150, pom: false, low_stock_threshold: 30, expiry_month: 12, expiry_year: 2027, drug_type: "Tablet", pharmacyId: "gpharm-lagos-hq" },
-  { id: "3", name: "Augmentin 625mg", api_molecule: "Co-amoxiclav", category: "Antibiotics", price: 18500, cost_price: 13000, quantity: 8, pom: true, low_stock_threshold: 12, expiry_month: 8, expiry_year: 2026, drug_type: "Tablet", pharmacyId: "gpharm-lagos-hq" }, // Low stock & expiring soon (Aug 2026)
-  { id: "4", name: "Lonart DS", api_molecule: "Artemether / Lumefantrine", category: "Antimalarials", price: 2500, cost_price: 1750, quantity: 55, pom: false, low_stock_threshold: 20, expiry_month: 10, expiry_year: 2027, drug_type: "Tablet", pharmacyId: "gpharm-lagos-hq" },
-  { id: "5", name: "Rocephin 1g Injection", api_molecule: "Ceftriaxone", category: "Antibiotics", price: 9000, cost_price: 6300, quantity: 4, pom: true, low_stock_threshold: 10, expiry_month: 9, expiry_year: 2026, drug_type: "Injection", pharmacyId: "gpharm-lagos-hq" }, // Low stock & expiring soon (Sept 2026)
-  { id: "6", name: "Ventolin Inhaler", api_molecule: "Salbutamol", category: "Inhalers & Respiratory", price: 7200, cost_price: 5040, quantity: 35, pom: true, low_stock_threshold: 10, expiry_month: 4, expiry_year: 2027, drug_type: "Inhaler", pharmacyId: "gpharm-lagos-hq" },
-  { id: "7", name: "Glucophage 500mg", api_molecule: "Metformin", category: "Antidiabetics", price: 3800, cost_price: 2660, quantity: 42, pom: true, low_stock_threshold: 15, expiry_month: 5, expiry_year: 2027, drug_type: "Tablet", pharmacyId: "gpharm-lagos-hq" },
-  { id: "8", name: "Lipitor 20mg", api_molecule: "Atorvastatin", category: "Antihypertensives & Cardio", price: 12500, cost_price: 8750, quantity: 18, pom: true, low_stock_threshold: 15, expiry_month: 7, expiry_year: 2026, drug_type: "Tablet", pharmacyId: "gpharm-lagos-hq" }, // Expiring this month (July 2026)
-  { id: "9", name: "Gaviscon Suspension 250ml", api_molecule: "Sodium Alginate / Antacid", category: "Antacids & Gastro", price: 5000, cost_price: 3500, quantity: 12, pom: false, low_stock_threshold: 5, expiry_month: 3, expiry_year: 2027, drug_type: "Suspension", pharmacyId: "gpharm-lagos-hq" },
-  { id: "10", name: "Ventolin Nebules 2.5mg", api_molecule: "Salbutamol", category: "Inhalers & Respiratory", price: 8000, cost_price: 5600, quantity: 3, pom: true, low_stock_threshold: 8, expiry_month: 12, expiry_year: 2026, drug_type: "Other", pharmacyId: "gpharm-lagos-hq" } // Low stock
+  { id: "1", name: "Amoxil 500mg", api_molecule: "Amoxicillin", category: "Antibiotics", price: 4500, cost_price: 3150, quantity: 24, pom: true, low_stock_threshold: 15, expiry_month: 11, expiry_year: 2026, drug_type: "Capsule", pharmacyId: "pocket-pharmacy-hq" },
+  { id: "2", name: "Panadol Extra", api_molecule: "Paracetamol / Caffeine", category: "Analgesics", price: 1200, cost_price: 840, quantity: 150, pom: false, low_stock_threshold: 30, expiry_month: 12, expiry_year: 2027, drug_type: "Tablet", pharmacyId: "pocket-pharmacy-hq" },
+  { id: "3", name: "Augmentin 625mg", api_molecule: "Co-amoxiclav", category: "Antibiotics", price: 18500, cost_price: 13000, quantity: 8, pom: true, low_stock_threshold: 12, expiry_month: 8, expiry_year: 2026, drug_type: "Tablet", pharmacyId: "pocket-pharmacy-hq" }, // Low stock & expiring soon (Aug 2026)
+  { id: "4", name: "Lonart DS", api_molecule: "Artemether / Lumefantrine", category: "Antimalarials", price: 2500, cost_price: 1750, quantity: 55, pom: false, low_stock_threshold: 20, expiry_month: 10, expiry_year: 2027, drug_type: "Tablet", pharmacyId: "pocket-pharmacy-hq" },
+  { id: "5", name: "Rocephin 1g Injection", api_molecule: "Ceftriaxone", category: "Antibiotics", price: 9000, cost_price: 6300, quantity: 4, pom: true, low_stock_threshold: 10, expiry_month: 9, expiry_year: 2026, drug_type: "Injection", pharmacyId: "pocket-pharmacy-hq" }, // Low stock & expiring soon (Sept 2026)
+  { id: "6", name: "Ventolin Inhaler", api_molecule: "Salbutamol", category: "Inhalers & Respiratory", price: 7200, cost_price: 5040, quantity: 35, pom: true, low_stock_threshold: 10, expiry_month: 4, expiry_year: 2027, drug_type: "Inhaler", pharmacyId: "pocket-pharmacy-hq" },
+  { id: "7", name: "Glucophage 500mg", api_molecule: "Metformin", category: "Antidiabetics", price: 3800, cost_price: 2660, quantity: 42, pom: true, low_stock_threshold: 15, expiry_month: 5, expiry_year: 2027, drug_type: "Tablet", pharmacyId: "pocket-pharmacy-hq" },
+  { id: "8", name: "Lipitor 20mg", api_molecule: "Atorvastatin", category: "Antihypertensives & Cardio", price: 12500, cost_price: 8750, quantity: 18, pom: true, low_stock_threshold: 15, expiry_month: 7, expiry_year: 2026, drug_type: "Tablet", pharmacyId: "pocket-pharmacy-hq" }, // Expiring this month (July 2026)
+  { id: "9", name: "Gaviscon Suspension 250ml", api_molecule: "Sodium Alginate / Antacid", category: "Antacids & Gastro", price: 5000, cost_price: 3500, quantity: 12, pom: false, low_stock_threshold: 5, expiry_month: 3, expiry_year: 2027, drug_type: "Suspension", pharmacyId: "pocket-pharmacy-hq" },
+  { id: "10", name: "Ventolin Nebules 2.5mg", api_molecule: "Salbutamol", category: "Inhalers & Respiratory", price: 8000, cost_price: 5600, quantity: 3, pom: true, low_stock_threshold: 8, expiry_month: 12, expiry_year: 2026, drug_type: "Other", pharmacyId: "pocket-pharmacy-hq" } // Low stock
 ];
 
 const DRUG_CATEGORIES = [
@@ -355,7 +355,7 @@ const generateMockSales = (): SalesRecord[] => {
       cashPaid: Math.floor(total * 0.4),
       transferPaid: Math.floor(total * 0.4),
       cardPaid: total - Math.floor(total * 0.4) - Math.floor(total * 0.4),
-      pharmacyId: "gpharm-lagos-hq",
+      pharmacyId: "pocket-pharmacy-hq",
       userId: u.id,
       userName: u.username
     });
@@ -378,7 +378,7 @@ const generateMockSales = (): SalesRecord[] => {
       cashPaid: total,
       transferPaid: 0,
       cardPaid: 0,
-      pharmacyId: "gpharm-lagos-hq",
+      pharmacyId: "pocket-pharmacy-hq",
       userId: u.id,
       userName: u.username
     });
@@ -403,7 +403,7 @@ const generateMockSales = (): SalesRecord[] => {
         cashPaid: 0,
         transferPaid: total,
         cardPaid: 0,
-        pharmacyId: "gpharm-lagos-hq",
+        pharmacyId: "pocket-pharmacy-hq",
         userId: u.id,
         userName: u.username
       });
@@ -429,7 +429,7 @@ const generateMockSales = (): SalesRecord[] => {
         cashPaid: 0,
         transferPaid: 0,
         cardPaid: total,
-        pharmacyId: "gpharm-lagos-hq",
+        pharmacyId: "pocket-pharmacy-hq",
         userId: u.id,
         userName: u.username
       });
@@ -453,7 +453,7 @@ const generateMockSales = (): SalesRecord[] => {
       cashPaid: Math.floor(total * 0.5),
       transferPaid: 0,
       cardPaid: total - Math.floor(total * 0.5),
-      pharmacyId: "gpharm-lagos-hq",
+      pharmacyId: "pocket-pharmacy-hq",
       userId: u.id,
       userName: u.username
     });
@@ -585,7 +585,7 @@ export default function App() {
           discrepancy: 4,
           reason: "Found unrecorded carton in back shelf during physical count",
           timestamp: "09:00:00 AM 07/05/2026",
-          pharmacyId: "gpharm-lagos-hq"
+          pharmacyId: "pocket-pharmacy-hq"
         },
         {
           id: "ST-2",
@@ -596,7 +596,7 @@ export default function App() {
           discrepancy: -2,
           reason: "Damaged box discarded, not yet written off",
           timestamp: "09:15:00 AM 07/05/2026",
-          pharmacyId: "gpharm-lagos-hq"
+          pharmacyId: "pocket-pharmacy-hq"
         }
       ];
       localStorage.setItem("pocket_stock_audit_history", JSON.stringify(defaultAudits));
@@ -614,8 +614,8 @@ export default function App() {
       }
     } else {
       const defaultFreqs: StockFrequency[] = [
-        { id: "SF-1", frequency: "Weekly", targetDayOrDate: "Monday", timeOfDay: "08:00 AM", notes: "Weekly routine morning stock audit", pharmacyId: "gpharm-lagos-hq" },
-        { id: "SF-2", frequency: "Monthly", targetDayOrDate: "1st day of month", timeOfDay: "06:00 PM", notes: "End of month clinical reconciliation", pharmacyId: "gpharm-lagos-hq" }
+        { id: "SF-1", frequency: "Weekly", targetDayOrDate: "Monday", timeOfDay: "08:00 AM", notes: "Weekly routine morning stock audit", pharmacyId: "pocket-pharmacy-hq" },
+        { id: "SF-2", frequency: "Monthly", targetDayOrDate: "1st day of month", timeOfDay: "06:00 PM", notes: "End of month pharmacy reconciliation", pharmacyId: "pocket-pharmacy-hq" }
       ];
       localStorage.setItem("pocket_stock_frequencies", JSON.stringify(defaultFreqs));
       return defaultFreqs;
@@ -632,8 +632,8 @@ export default function App() {
   // --- Restore session if needed ---
   useEffect(() => {
     if (isLoggedIn && (!currentUser || !currentPharmacy)) {
-      const defaultUser = appUsers.find(u => u.role === currentRole && u.pharmacyId === "gpharm-lagos-hq") || appUsers[0];
-      const defaultPharm = pharmacies.find(p => p.id === (defaultUser?.pharmacyId || "gpharm-lagos-hq")) || pharmacies[0];
+      const defaultUser = appUsers.find(u => u.role === currentRole && u.pharmacyId === "pocket-pharmacy-hq") || appUsers[0];
+      const defaultPharm = pharmacies.find(p => p.id === (defaultUser?.pharmacyId || "pocket-pharmacy-hq")) || pharmacies[0];
       setCurrentUser(defaultUser);
       setCurrentPharmacy(defaultPharm);
       localStorage.setItem("pocket_current_user", JSON.stringify(defaultUser));
@@ -656,27 +656,27 @@ export default function App() {
   // --- Active Pharmacy Memos for Multi-Tenant Data Isolation ---
   const activePharmacyProducts = useMemo(() => {
     if (!currentPharmacy) return [];
-    return products.filter(p => (p.pharmacyId || "gpharm-lagos-hq") === currentPharmacy.id);
+    return products.filter(p => (p.pharmacyId || "pocket-pharmacy-hq") === currentPharmacy.id);
   }, [products, currentPharmacy]);
 
   const activePharmacySales = useMemo(() => {
     if (!currentPharmacy) return [];
-    return salesRecords.filter(r => (r.pharmacyId || "gpharm-lagos-hq") === currentPharmacy.id);
+    return salesRecords.filter(r => (r.pharmacyId || "pocket-pharmacy-hq") === currentPharmacy.id);
   }, [salesRecords, currentPharmacy]);
 
   const activePharmacyAudits = useMemo(() => {
     if (!currentPharmacy) return [];
-    return stockAuditHistory.filter(a => (a.pharmacyId || "gpharm-lagos-hq") === currentPharmacy.id);
+    return stockAuditHistory.filter(a => (a.pharmacyId || "pocket-pharmacy-hq") === currentPharmacy.id);
   }, [stockAuditHistory, currentPharmacy]);
 
   const activePharmacyFrequencies = useMemo(() => {
     if (!currentPharmacy) return [];
-    return stockTakingFrequencies.filter(f => (f.pharmacyId || "gpharm-lagos-hq") === currentPharmacy.id);
+    return stockTakingFrequencies.filter(f => (f.pharmacyId || "pocket-pharmacy-hq") === currentPharmacy.id);
   }, [stockTakingFrequencies, currentPharmacy]);
 
   const activePharmacyUsers = useMemo(() => {
     if (!currentPharmacy) return [];
-    return appUsers.filter(u => (u.pharmacyId || "gpharm-lagos-hq") === currentPharmacy.id);
+    return appUsers.filter(u => (u.pharmacyId || "pocket-pharmacy-hq") === currentPharmacy.id);
   }, [appUsers, currentPharmacy]);
 
   const [shelfCounts, setShelfCounts] = useState<{[key: string]: string}>({});
@@ -811,7 +811,7 @@ export default function App() {
   const [paymentTransfer, setPaymentTransfer] = useState<string>("");
   const [paymentCard, setPaymentCard] = useState<string>("");
 
-  // Clinical Alert Tab state
+  // Pharmacy Alert Tab state
   const [activeAlertTab, setActiveAlertTab] = useState<"low" | "expiry">("low");
 
   // --- Modals State ---
@@ -981,13 +981,13 @@ export default function App() {
       }
 
       // Get latest local products for this pharmacy using the ref
-      let localProducts = [...productsRef.current].filter(p => (p.pharmacyId || "gpharm-lagos-hq") === targetPharmId);
+      let localProducts = [...productsRef.current].filter(p => (p.pharmacyId || "pocket-pharmacy-hq") === targetPharmId);
       if (localProducts.length === 0) {
         const saved = localStorage.getItem("gpharm_local_products");
         if (saved) {
           try {
             const parsed: Product[] = JSON.parse(saved);
-            localProducts = parsed.filter(p => (p.pharmacyId || "gpharm-lagos-hq") === targetPharmId);
+            localProducts = parsed.filter(p => (p.pharmacyId || "pocket-pharmacy-hq") === targetPharmId);
           } catch {}
         }
       }
@@ -1087,7 +1087,7 @@ export default function App() {
       }
 
       // 5. Update local state keeping other pharmacies' products intact in storage
-      const otherPharmaciesProducts = productsRef.current.filter(p => (p.pharmacyId || "gpharm-lagos-hq") !== targetPharmId);
+      const otherPharmaciesProducts = productsRef.current.filter(p => (p.pharmacyId || "pocket-pharmacy-hq") !== targetPharmId);
       const allProductsUpdated = [...otherPharmaciesProducts, ...mergedProducts].sort((a, b) => a.name.localeCompare(b.name));
 
       setProducts(allProductsUpdated);
@@ -1611,7 +1611,7 @@ export default function App() {
         cashPaid: numCash,
         transferPaid: numTransfer,
         cardPaid: numCard,
-        pharmacyId: currentPharmacy?.id || "gpharm-lagos-hq",
+        pharmacyId: currentPharmacy?.id || "pocket-pharmacy-hq",
         userId: currentUser?.id || "user-cashier",
         userName: currentUser?.username || "cashier"
       };
@@ -1624,7 +1624,7 @@ export default function App() {
 
       // Construct SMS text preview
       const itemsListText = cart.map(item => `${item.product.name} (x${item.quantity})`).join(", ");
-      const smsText = `Pocket Pharmacy Receipt [${receiptId}]\nDate: ${timestamp}\nItems: ${itemsListText}\nTotal: ₦${cartTotal.toLocaleString("en-NG")}\nPaid via: Cash(₦${numCash.toLocaleString()}), Transfer(₦${numTransfer.toLocaleString()}), Card(₦${numCard.toLocaleString()})\nChange: ₦${changeDue.toLocaleString()}\nThank you for your clinical purchase!`;
+      const smsText = `Pocket Pharmacy Receipt [${receiptId}]\nDate: ${timestamp}\nItems: ${itemsListText}\nTotal: ₦${cartTotal.toLocaleString("en-NG")}\nPaid via: Cash(₦${numCash.toLocaleString()}), Transfer(₦${numTransfer.toLocaleString()}), Card(₦${numCard.toLocaleString()})\nChange: ₦${changeDue.toLocaleString()}\nThank you for your pharmacy purchase!`;
       setSmsPreviewText(smsText);
 
       setLastReceipt({
@@ -1678,7 +1678,7 @@ export default function App() {
       expiry_month: expMonth,
       expiry_year: expYear,
       drug_type: drugType,
-      pharmacyId: currentPharmacy?.id || "gpharm-lagos-hq"
+      pharmacyId: currentPharmacy?.id || "pocket-pharmacy-hq"
     };
 
     // Store learned drug & API pair into system knowledge base
@@ -1788,7 +1788,7 @@ export default function App() {
               expiry_month: expMonth,
               expiry_year: expYear,
               drug_type: drugType,
-              pharmacyId: currentPharmacy?.id || "gpharm-lagos-hq"
+              pharmacyId: currentPharmacy?.id || "pocket-pharmacy-hq"
             });
           }
         });
@@ -1836,7 +1836,7 @@ export default function App() {
     const worksheet = XLSX.utils.json_to_sheet(demoData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Lagos Inventory");
-    XLSX.writeFile(workbook, "GPharm_Lagos_Inventory_Template.xlsx");
+    XLSX.writeFile(workbook, "Pocket_Pharmacy_Inventory_Template.xlsx");
     addLog("Downloaded sample Excel inventory template.");
   };
 
@@ -2096,7 +2096,7 @@ export default function App() {
         discrepancy,
         reason: reason.trim() || "Regular Scheduled Audit Verification",
         timestamp: new Date().toLocaleTimeString() + " " + new Date().toLocaleDateString(),
-        pharmacyId: currentPharmacy?.id || "gpharm-lagos-hq",
+        pharmacyId: currentPharmacy?.id || "pocket-pharmacy-hq",
         userId: currentUser?.id || "user-super",
         userName: currentUser?.username || "superadmin"
       };
@@ -2143,7 +2143,7 @@ export default function App() {
       enableAppNotification: newFreqAppNotification,
       enableEmailNotification: newFreqEmailNotification,
       notificationEmail: newFreqEmailNotification ? newFreqEmailAddress.trim() : undefined,
-      pharmacyId: currentPharmacy?.id || "gpharm-lagos-hq"
+      pharmacyId: currentPharmacy?.id || "pocket-pharmacy-hq"
     };
 
     setStockTakingFrequencies(prev => {
@@ -2220,7 +2220,7 @@ export default function App() {
       scheduleId: schedule.id,
       scheduleDetails: `${schedule.frequency} - ${schedule.targetDayOrDate} at ${schedule.timeOfDay}`,
       type: "email" as const,
-      message: `✉️ [Email Sent] 24-Hour Prior Reminder Notice dispatched to ${schedule.notificationEmail || "onyemekamichael@gmail.com"}. Subject: [GPharm Audit Alert] Scheduled Stock-Take tomorrow. Notes: ${schedule.notes}`,
+      message: `✉️ [Email Sent] 24-Hour Prior Reminder Notice dispatched to ${schedule.notificationEmail || "onyemekamichael@gmail.com"}. Subject: [Pocket Pharmacy Audit Alert] Scheduled Stock-Take tomorrow. Notes: ${schedule.notes}`,
       recipient: schedule.notificationEmail || "onyemekamichael@gmail.com"
     };
 
@@ -2261,7 +2261,7 @@ export default function App() {
     }
   };
 
-  // --- 6. Staff AI Consult (Lagos Clinical Pharmacist via backend) ---
+  // --- 6. Staff AI Consult (Lagos Pharmacy Pharmacist via backend) ---
   const requestAiConsult = async (product: Product) => {
     setConsultingProduct(product);
     setAiResponse("");
@@ -2288,11 +2288,11 @@ export default function App() {
         setAiResponse(data.result);
         addLog(`Consult received for ${product.name}.`);
       } else {
-        setAiResponse(`❌ Clinical server: ${data.error || "Consult failed."}`);
+        setAiResponse(`❌ Pharmacy server: ${data.error || "Consult failed."}`);
       }
     } catch (err: any) {
       console.error(err);
-      setAiResponse(`❌ Connection lost to GPharm clinical API server. Please retry.`);
+      setAiResponse(`❌ Connection lost to Pocket Pharmacy API server. Please retry.`);
     } finally {
       setIsAiLoading(false);
     }
@@ -2642,9 +2642,9 @@ export default function App() {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-display font-bold text-2xl tracking-tight leading-none">Pocket Pharmacy</span>
-                  <span className="bg-emerald-900 border border-emerald-700 text-emerald-300 font-mono text-[9px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">Clinical Suite</span>
+                  <span className="bg-emerald-900 border border-emerald-700 text-emerald-300 font-mono text-[9px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">Pharmacy Suite</span>
                 </div>
-                <p className="text-emerald-200/80 text-[10px] uppercase font-mono tracking-wider mt-0.5">Clinical Inventory & POS</p>
+                <p className="text-emerald-200/80 text-[10px] uppercase font-mono tracking-wider mt-0.5">Pharmacy Inventory & POS</p>
               </div>
             </div>
 
@@ -2734,7 +2734,7 @@ export default function App() {
           </p>
         </div>
 
-        {/* Clinical Alerts Notification Center */}
+        {/* Pharmacy Alerts Notification Center */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="bg-slate-50 border-b border-slate-200 p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div className="flex items-center gap-3">
@@ -2747,8 +2747,8 @@ export default function App() {
                 )}
               </div>
               <div>
-                <h3 className="text-base font-bold font-display text-slate-900">Clinical Alert & Pharmacovigilance Center</h3>
-                <p className="text-xs text-slate-500">Real-time status tracking for clinical inventory levels and expiry deadlines.</p>
+                <h3 className="text-base font-bold font-display text-slate-900">Pharmacy Alert & Pharmacovigilance Center</h3>
+                <p className="text-xs text-slate-500">Real-time status tracking for pharmacy inventory levels and expiry deadlines.</p>
               </div>
             </div>
 
@@ -2894,7 +2894,7 @@ export default function App() {
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
                   <h2 className="text-xl font-bold font-display text-slate-900">POS Sales Desk</h2>
-                  <p className="text-xs text-slate-500">Search and dispense clinical inventory items below.</p>
+                  <p className="text-xs text-slate-500">Search and dispense pharmacy inventory items below.</p>
                 </div>
                 {/* Category Selector */}
                 <select
@@ -2992,7 +2992,7 @@ export default function App() {
                               <button
                                 onClick={() => requestAiConsult(p)}
                                 className="bg-emerald-50 text-[#0a4a3a] border border-emerald-200 p-1 rounded-md hover:bg-[#0a4a3a] hover:text-white transition-all flex items-center justify-center"
-                                title="Run GPharm AI Clinical Consult"
+                                title="Run Pocket Pharmacy AI Consult"
                               >
                                 <Sparkles className="w-3 h-3 text-amber-500" />
                               </button>
@@ -3209,7 +3209,7 @@ export default function App() {
 
         </div>
 
-        {/* Staff Clinical Assistant (Gemini 1.5/3.5 Flash) Hub */}
+        {/* Staff Pharmacy Assistant (Gemini 1.5/3.5 Flash) Hub */}
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="bg-[#0a4a3a] text-white p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200">
             <div className="flex items-center gap-3">
@@ -3238,7 +3238,7 @@ export default function App() {
               <Lock className="w-12 h-12 text-slate-300 mx-auto mb-3" />
               <h4 className="font-bold text-slate-800">Pharmacist Credentials Required</h4>
               <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
-                Clinical AI Consult operations are internal only. Please switch the session operator profile at the header to <span className="font-bold text-[#0a4a3a]">Admin AI</span> to unlocked clinical decision guidelines.
+                Pharmacy AI Consult operations are internal only. Please switch the session operator profile at the header to <span className="font-bold text-[#0a4a3a]">Admin AI</span> to unlocked pharmacy decision guidelines.
               </p>
             </div>
           ) : (
@@ -3246,7 +3246,7 @@ export default function App() {
               
               {/* Form Input Side */}
               <div className="lg:col-span-5 p-6 space-y-4">
-                <p className="text-xs text-slate-500">Check clinical bio-equivalents and market price instantly.</p>
+                <p className="text-xs text-slate-500">Check pharmacy bio-equivalents and market price instantly.</p>
                 
                 <form onSubmit={submitCustomAiQuery} className="space-y-4 pt-2">
                   <div className="space-y-1">
@@ -3287,7 +3287,7 @@ export default function App() {
                     {isAiLoading ? (
                       <div className="flex flex-col items-center justify-center py-10 space-y-3">
                         <div className="w-8 h-8 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-                        <p className="text-emerald-400 animate-pulse">Consulting Lagos clinical directories...</p>
+                        <p className="text-emerald-400 animate-pulse">Consulting Lagos pharmacy directories...</p>
                       </div>
                     ) : aiResponse ? (
                       <div>
@@ -3303,7 +3303,7 @@ export default function App() {
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-slate-200 text-[10px] text-slate-400 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                  <p>⚠️ Clinical drug indexes are updated bi-weekly.</p>
+                  <p>⚠️ Pharmacy drug indexes are updated bi-weekly.</p>
                   {aiResponse && (
                     <button 
                       onClick={() => {
@@ -3531,7 +3531,7 @@ export default function App() {
                             <tr>
                               <td colSpan={6} className="py-12 text-center text-slate-500">
                                 <Database className="w-10 h-10 mx-auto text-slate-700 mb-2" />
-                                No clinical transactions logged for user "{selectedUserFilter}" in this active session.
+                                No pharmacy transactions logged for user "{selectedUserFilter}" in this active session.
                               </td>
                             </tr>
                           )}
@@ -3542,7 +3542,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* PANEL 2: CLINICAL STOCK AUDITOR */}
+              {/* PANEL 2: PHARMACY STOCK AUDITOR */}
               {superAdminTab === "stocktake" && (
                 <div className="space-y-6 animate-fadeIn">
                   {/* Info card */}
@@ -3550,7 +3550,7 @@ export default function App() {
                     <div className="space-y-1">
                       <h4 className="font-bold text-sm text-white flex items-center gap-1.5">
                         <Layers className="w-4 h-4 text-cyan-400" />
-                        Clinical Stock Discrepancy Auditor
+                        Pharmacy Stock Discrepancy Auditor
                       </h4>
                       <p className="text-xs text-slate-400">Perform physical reconciliations. Input physical shelf counts to calculate discrepancies against system records.</p>
                     </div>
@@ -3572,7 +3572,7 @@ export default function App() {
                       <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
-                        placeholder="Search clinical item by name, molecule API, or medical category..."
+                        placeholder="Search pharmacy item by name, molecule API, or medical category..."
                         value={auditSearchQuery}
                         onChange={(e) => setAuditSearchQuery(e.target.value)}
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-8 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
@@ -3605,7 +3605,7 @@ export default function App() {
                       <table className="w-full text-left border-collapse text-xs">
                         <thead>
                           <tr className="bg-slate-900/80 border-b border-slate-800 text-slate-400 uppercase font-mono text-[10px]">
-                            <th className="py-3.5 px-5">Clinical Product</th>
+                            <th className="py-3.5 px-5">Pharmacy Product</th>
                             <th className="py-3.5 px-5 text-center">App Quantity</th>
                             <th className="py-3.5 px-5 text-center w-36">Physical Shelf Count</th>
                             <th className="py-3.5 px-5 text-center">Delta Indicator</th>
@@ -3705,8 +3705,8 @@ export default function App() {
                             <tr>
                               <td colSpan={6} className="py-12 text-center text-slate-500 font-sans">
                                 <Search className="w-10 h-10 mx-auto text-slate-700 mb-2 animate-bounce" />
-                                <div className="text-sm font-bold text-slate-400">No clinical items match your search of interest</div>
-                                <p className="text-xs text-slate-600 mt-1">Try searching by brand name, generic molecule name, or clinical category</p>
+                                <div className="text-sm font-bold text-slate-400">No pharmacy items match your search of interest</div>
+                                <p className="text-xs text-slate-600 mt-1">Try searching by brand name, generic molecule name, or pharmacy category</p>
                                 <button
                                   onClick={() => setAuditSearchQuery("")}
                                   className="mt-3 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 px-3.5 py-1.5 rounded-lg text-xs font-semibold font-sans transition-all active:scale-95"
@@ -3826,7 +3826,7 @@ export default function App() {
                                   type="email"
                                   value={newFreqEmailAddress}
                                   onChange={(e) => setNewFreqEmailAddress(e.target.value)}
-                                  placeholder="e.g. administrator@gpharm.com"
+                                  placeholder="e.g. administrator@pocketpharmacy.com"
                                   className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-cyan-500 font-mono"
                                 />
                               </div>
@@ -4147,9 +4147,9 @@ export default function App() {
                           <div className="space-y-2.5">
                             {[
                               { id: "sales", label: "POS Sales Desk", desc: "Allow issuing invoices & recording payments" },
-                              { id: "inventory", label: "Clinical Inventory", desc: "Allow manual price & quantity updates" },
-                              { id: "audits", label: "Clinical Audit & Stocktake", desc: "Allow running stock discrepancy auditor" },
-                              { id: "ai_consult", label: "AI Clinical Consultant", desc: "Access real-time Gemini pharmacovigilance consult" },
+                              { id: "inventory", label: "Pharmacy Inventory", desc: "Allow manual price & quantity updates" },
+                              { id: "audits", label: "Pharmacy Audit & Stocktake", desc: "Allow running stock discrepancy auditor" },
+                              { id: "ai_consult", label: "AI Pharmacy Consultant", desc: "Access real-time Gemini pharmacovigilance consult" },
                               { id: "admin_panel", label: "Admin Clearance Hub", desc: "Access sales dashboards & reports" }
                             ].map((feat) => {
                               const isChecked = newUserFeatures.includes(feat.id);
@@ -4351,7 +4351,7 @@ export default function App() {
                             type="email"
                             value={editPharmEmail}
                             onChange={(e) => setEditPharmEmail(e.target.value)}
-                            placeholder="e.g. info@gpharm.com"
+                            placeholder="e.g. info@pocketpharmacy.com"
                             className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 font-mono"
                           />
                         </div>
@@ -4418,7 +4418,7 @@ export default function App() {
                         Multi-Pharmacy Data Security Guarantee
                       </h5>
                       <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
-                        All sales records, clinical stock inventory, audit logs, and user credentials saved under <strong className="text-white">{currentPharmacy?.name}</strong> are tagged exclusively with workspace ID <code className="text-cyan-300 font-mono text-[10px]">{currentPharmacy?.id}</code>. Other pharmacies logged into this application cannot view, edit, or access your data in memory, storage, or cloud database queries.
+                        All sales records, pharmacy stock inventory, audit logs, and user credentials saved under <strong className="text-white">{currentPharmacy?.name}</strong> are tagged exclusively with workspace ID <code className="text-cyan-300 font-mono text-[10px]">{currentPharmacy?.id}</code>. Other pharmacies logged into this application cannot view, edit, or access your data in memory, storage, or cloud database queries.
                       </p>
                     </div>
 
@@ -4462,7 +4462,7 @@ export default function App() {
           
           <div className="bg-[#0a4a3a] text-white p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <h2 className="text-xl font-bold font-display text-white">Clinical Inventory Spreadsheet</h2>
+              <h2 className="text-xl font-bold font-display text-white">Pharmacy Inventory Spreadsheet</h2>
               <p className="text-xs text-emerald-200/80">Monitor pharmacy quantities, adjust prices, and upload master schedules.</p>
             </div>
             
@@ -4512,7 +4512,7 @@ export default function App() {
               <span className="bg-emerald-900 text-emerald-200 px-1.5 py-0.5 rounded text-[8px] uppercase font-bold">LOG</span>
               <span className="text-slate-300 truncate">{dbLogs[0] || "Ready for POS operations."}</span>
             </div>
-            <span className="text-slate-500 shrink-0 font-bold ml-2">GPharm Node Core Online</span>
+            <span className="text-slate-500 shrink-0 font-bold ml-2">Pocket Pharmacy Core Online</span>
           </div>
 
           {/* Inventory Financial & Stock Metrics Summary Bar */}
@@ -4829,7 +4829,7 @@ export default function App() {
             <div className="bg-[#0a4a3a] text-white p-5 sm:p-6 flex justify-between items-start">
               <div>
                 <h3 className="font-display font-bold text-lg">Add New Product to Pocket Pharmacy</h3>
-                <p className="text-emerald-200 text-xs">Fill clinical parameters to update stock lists instantly.</p>
+                <p className="text-emerald-200 text-xs">Fill pharmacy parameters to update stock lists instantly.</p>
               </div>
               <button 
                 onClick={() => setIsAddProductModalOpen(false)}
@@ -5152,7 +5152,7 @@ export default function App() {
               </div>
 
               <div className="text-center text-[10px] text-slate-400 pt-4 border-t border-slate-100">
-                <p>Thank you for your clinical B2B purchase!</p>
+                <p>Thank you for your pharmacy B2B purchase!</p>
                 <p className="mt-1">Verified with Pocket Pharmacy Security Protocols</p>
               </div>
 
