@@ -29,6 +29,7 @@ interface AuthModalProps {
     cacNumber?: string;
     pcnLicense?: string;
   }) => void;
+  onOpenLanding?: () => void;
   showCancelButton?: boolean;
   isFullScreen?: boolean;
 }
@@ -40,6 +41,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   users,
   onLogin,
   onRegisterTenant,
+  onOpenLanding,
   showCancelButton = true,
   isFullScreen = false
 }) => {
@@ -398,6 +400,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               Initialize Isolated Pharmacy Workspace
             </button>
           </form>
+        )}
+
+        {/* Overview & Subscription Link */}
+        {onOpenLanding && (
+          <div className="pt-2 text-center border-t border-slate-100">
+            <button
+              type="button"
+              onClick={onOpenLanding}
+              className="text-xs text-emerald-700 hover:text-emerald-900 font-semibold hover:underline"
+            >
+              Learn about Pocket Pharmacy benefits & ₦5,000 subscription →
+            </button>
+          </div>
         )}
       </div>
     </div>

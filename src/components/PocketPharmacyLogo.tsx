@@ -70,7 +70,7 @@ export const PocketPharmacyLogo: React.FC<PocketPharmacyLogoProps> = ({
           </span>
 
           {tenantName && (
-            <span className="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#145a49] text-[#3be8b0] border border-[#3be8b0]/30 uppercase tracking-wider shadow-xs">
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#145a49] text-[#3be8b0] border border-[#3be8b0]/30 uppercase tracking-wider shadow-xs">
               {tenantName}
             </span>
           )}
@@ -82,13 +82,13 @@ export const PocketPharmacyLogo: React.FC<PocketPharmacyLogoProps> = ({
               isLight ? "text-slate-500" : "text-[#6ee7b7]"
             }`}
           >
-            {tenantName ? (
-              <span className="flex items-center gap-1.5">
-                <span>{tenantName}</span>
-                {tenantLocation && <span className="opacity-80 font-sans">• {tenantLocation}</span>}
+            {tenantLocation ? (
+              <span className="flex items-center gap-1.5 font-sans">
+                <span>{tenantLocation}</span>
+                <span className="opacity-70 font-mono">• WORKSPACE</span>
               </span>
             ) : (
-              "POS & STOCK MANAGER"
+              "PHARMACY OPERATING WORKSPACE"
             )}
           </p>
         )}

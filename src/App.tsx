@@ -15,6 +15,7 @@ import {
   initTenantRegistry,
   createTenantWorkspace,
   createTenantUser,
+  updateTenantUser,
   deleteTenantUser,
   getTenantUsers,
   updateTenantPharmacy,
@@ -39,6 +40,7 @@ import { AiAssistant } from "./components/AiAssistant";
 import { SuperAdminDashboard } from "./components/SuperAdminDashboard";
 import { AuthModal } from "./components/AuthModal";
 import { ReceiptModal } from "./components/ReceiptModal";
+import { LandingPage } from "./components/LandingPage";
 
 export function App() {
   // Tenant & User Global Registries
@@ -49,8 +51,9 @@ export function App() {
   const [currentPharmacy, setCurrentPharmacy] = useState<Pharmacy | null>(null);
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
 
-  // Active View Tab
+  // Active View Tab & Landing Page State (Landing page is the entry point)
   const [activeTab, setActiveTab] = useState<"pos" | "inventory" | "alerts" | "ai_consult" | "admin">("pos");
+  const [isViewingLanding, setIsViewingLanding] = useState(true);
 
   // Isolated Tenant Database States
   const [products, setProducts] = useState<Product[]>([]);
@@ -411,6 +414,40 @@ export function App() {
     setActiveTab("ai_consult");
   };
 
+  if (isViewingLanding) {
+    return (
+      <>
+        <LandingPage
+          onGetStarted={() => {
+            setIsViewingLanding(false);
+            setIsAuthModalOpen(true);
+          }}
+          onLogin={() => {
+            setIsViewingLanding(false);
+            setIsAuthModalOpen(true);
+          }}
+          onViewWorkspace={() => setIsViewingLanding(false)}
+        />
+
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
+          pharmacies={pharmacies}
+          users={users}
+          onLogin={(user, pharm) => {
+            handleLogin(user, pharm);
+            setIsViewingLanding(false);
+          }}
+          onRegisterTenant={(params) => {
+            handleRegisterTenant(params);
+            setIsViewingLanding(false);
+          }}
+          onOpenLanding={() => setIsViewingLanding(true)}
+        />
+      </>
+    );
+  }
+
   if (!currentPharmacy || !currentUser) {
     return (
       <AuthModal
@@ -422,6 +459,7 @@ export function App() {
         users={users}
         onLogin={handleLogin}
         onRegisterTenant={handleRegisterTenant}
+        onOpenLanding={() => setIsViewingLanding(true)}
       />
     );
   }
@@ -440,8 +478,7 @@ export function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         lastBackupTime={lastBackupTime}
-        isBackingUp={isBackingUp}
-        onManualBackup={handleManualBackup}
+        onTriggerBackup={handleManualBackup}
         onLogout={handleLogout}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
       />
@@ -480,7 +517,12 @@ export function App() {
         {activeTab === "ai_consult" && (
           <AiAssistant
             initialProduct={consultTargetProduct}
+            products={products}
+            pharmacyName={currentPharmacy.name}
             onClearInitialProduct={() => setConsultTargetProduct(null)}
+            onSelectProductForPOS={() => {
+              setActiveTab("pos");
+            }}
           />
         )}
 

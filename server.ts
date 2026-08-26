@@ -35,10 +35,10 @@ function getGeminiClient(): GoogleGenAI {
   return aiClient;
 }
 
-// AI Consult Endpoint
+// AI Consult Endpoint with In-House Database Alternatives Support
 app.post("/api/ai-assist", async (req, res) => {
   try {
-    const { brandName, molecule, category } = req.body;
+    const { brandName, molecule, category, pharmacyName, databaseProducts } = req.body;
 
     if (!brandName && !molecule) {
       return res.status(400).json({
@@ -48,29 +48,50 @@ app.post("/api/ai-assist", async (req, res) => {
 
     const ai = getGeminiClient();
 
-    const systemInstruction = `You are a highly experienced Lagos Pharmacist working in a community pharmacy in Lagos, Nigeria. 
-Your tone is professional, knowledgeable, and locally relevant. 
-For any drug or product queried, you must:
-1. Suggest exactly 3 valid bio-equivalent alternatives (brand names available in Nigeria) with their standard strengths.
-2. Provide a realistic Lagos Market Price Benchmark in Nigerian Naira (₦) based on major local pharmacy chains.
-3. Be brief, clinical, and precise. Avoid emojis.
+    const formattedInventory = Array.isArray(databaseProducts) && databaseProducts.length > 0
+      ? databaseProducts.map((p: any) => 
+          `- ${p.name} | Molecule: ${p.api_molecule} | Form: ${p.drug_type || "Tablet"} | Category: ${p.category} | In-Stock: ${p.quantity} units | Price: ₦${Number(p.price || 0).toLocaleString()}`
+        ).join("\n")
+      : "No products currently loaded in this pharmacy database.";
 
-CRITICAL: You must end your entire response with the exact phrase:
+    const systemInstruction = `You are a highly experienced Lagos Clinical Pharmacist working in a Nigerian pharmacy operating workspace.
+Your role is to assist the dispensing team by cross-referencing queries against both the pharmacy's internal inventory database and registered Nigerian market alternatives.
+
+For any drug or product queried, you must provide a structured consult:
+
+### 1. In-House Inventory Alternatives (From Your Database)
+- Check the provided "In-House Pharmacy Inventory" below.
+- Highlight any products in the pharmacy's database that share the same active ingredient (molecule), bio-equivalence, or therapeutic class.
+- List their exact product name, stock quantity available, and in-store selling price (₦).
+- If no matching product is found in the current store database, explicitly state: "No direct bio-equivalent currently recorded in your in-house database."
+
+### 2. Nigerian Market Bio-Equivalent Brands & Benchmarks
+- Suggest 3 registered bio-equivalent brand names available in Nigerian pharmacies with their standard strengths.
+- Provide a realistic Lagos Market Price Benchmark range in Nigerian Naira (₦).
+
+### 3. Clinical Dispensing & Administration Notes
+- Provide concise guidance on dosage frequency, food interactions, and key contraindications.
+
+CRITICAL: End your response with the exact phrase:
 "Internal Support Only. Verify molecules before dispensing."`;
 
     const prompt = `Consult request details:
-- Brand Name: ${brandName || "Unknown"}
+- Commercial / Brand Name: ${brandName || "Unknown"}
 - Active Ingredient / Molecule: ${molecule || "Unknown"}
 - Category: ${category || "General"}
+- Pharmacy Name: ${pharmacyName || "Our Pharmacy"}
 
-Provide the bio-equivalents and Lagos market price benchmarks as requested.`;
+In-House Pharmacy Inventory Database (${Array.isArray(databaseProducts) ? databaseProducts.length : 0} items):
+${formattedInventory}
+
+Analyze this drug request, prioritize any matching alternatives already present in our database, and provide external Nigerian market equivalents and clinical guidance.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-3.7-flash",
       contents: prompt,
       config: {
         systemInstruction,
-        temperature: 0.7,
+        temperature: 0.6,
       },
     });
 

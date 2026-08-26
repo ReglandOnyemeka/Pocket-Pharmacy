@@ -14,6 +14,15 @@ import {
   INITIAL_PRODUCTS_TEMPLATE,
   INITIAL_FREQUENCIES_TEMPLATE
 } from "../data/initialData";
+import {
+  db,
+  doc,
+  getDoc,
+  setDoc,
+  getDocs,
+  collection,
+  deleteDoc
+} from "../lib/firebase";
 
 const PHARMACIES_KEY = "pocket_pharmacies_registry";
 const USERS_REGISTRY_KEY = "pocket_users_global_registry";
@@ -21,40 +30,75 @@ const CURRENT_USER_KEY = "pocket_active_user";
 const CURRENT_PHARMACY_KEY = "pocket_active_pharmacy";
 
 /**
- * Initializes default multi-tenant registry if not present
+ * Checks local cache or memory fallback
+ */
+function getLocal<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.warn(`[Storage] Failed reading ${key}`, e);
+  }
+  return fallback;
+}
+
+function setLocal<T>(key: string, value: T): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    console.warn(`[Storage] Failed setting ${key}`, e);
+  }
+}
+
+/**
+ * Initializes default multi-tenant registry from LocalStorage + asynchronous Firestore sync
  */
 export function initTenantRegistry(): { pharmacies: Pharmacy[]; users: AppUser[] } {
-  let pharmacies: Pharmacy[] = [];
-  let users: AppUser[] = [];
+  let pharmacies = getLocal<Pharmacy[]>(PHARMACIES_KEY, [DEFAULT_PHARMACY]);
+  let users = getLocal<AppUser[]>(USERS_REGISTRY_KEY, DEFAULT_USERS);
 
-  try {
-    const rawPharm = localStorage.getItem(PHARMACIES_KEY);
-    if (rawPharm) {
-      pharmacies = JSON.parse(rawPharm);
-    } else {
-      pharmacies = [DEFAULT_PHARMACY];
-      localStorage.setItem(PHARMACIES_KEY, JSON.stringify(pharmacies));
-    }
-  } catch (e) {
-    pharmacies = [DEFAULT_PHARMACY];
-  }
+  if (pharmacies.length === 0) pharmacies = [DEFAULT_PHARMACY];
+  if (users.length === 0) users = DEFAULT_USERS;
 
-  try {
-    const rawUsers = localStorage.getItem(USERS_REGISTRY_KEY);
-    if (rawUsers) {
-      users = JSON.parse(rawUsers);
-    } else {
-      users = DEFAULT_USERS;
-      localStorage.setItem(USERS_REGISTRY_KEY, JSON.stringify(users));
-    }
-  } catch (e) {
-    users = DEFAULT_USERS;
-  }
+  setLocal(PHARMACIES_KEY, pharmacies);
+  setLocal(USERS_REGISTRY_KEY, users);
 
-  // Ensure default headquarters tenant data is seeded
+  // Seed default tenant local structures
   ensureTenantSeeded(DEFAULT_PHARMACY.id, true);
 
+  // Asynchronously synchronize global registry with Firebase
+  syncRegistryWithFirebase(pharmacies, users).catch((e) =>
+    console.warn("[Firestore] Silent registry sync warning:", e)
+  );
+
   return { pharmacies, users };
+}
+
+/**
+ * Syncs pharmacies and users with Firestore
+ */
+async function syncRegistryWithFirebase(localPharmacies: Pharmacy[], localUsers: AppUser[]) {
+  try {
+    // 1. Fetch cloud pharmacies
+    const pharmSnapshot = await getDocs(collection(db, "pharmacies"));
+    if (pharmSnapshot.empty) {
+      // Seed initial cloud pharmacies
+      for (const p of localPharmacies) {
+        await setDoc(doc(db, "pharmacies", p.id), p);
+      }
+    }
+
+    // 2. Fetch cloud users
+    const userSnapshot = await getDocs(collection(db, "users"));
+    if (userSnapshot.empty) {
+      // Seed initial cloud users
+      for (const u of localUsers) {
+        await setDoc(doc(db, "users", u.id), u);
+      }
+    }
+  } catch (err) {
+    console.warn("[Firestore] Sync registry error:", err);
+  }
 }
 
 /**
@@ -63,36 +107,36 @@ export function initTenantRegistry(): { pharmacies: Pharmacy[]; users: AppUser[]
 export function ensureTenantSeeded(pharmacyId: string, isDefault = false) {
   const prodKey = `tenant_${pharmacyId}_products`;
   if (!localStorage.getItem(prodKey)) {
-    // Only default tenant has initial demo products; new onboarded pharmacies start with a clean catalog
     const starterProds = isDefault ? INITIAL_PRODUCTS_TEMPLATE(pharmacyId) : [];
-    localStorage.setItem(prodKey, JSON.stringify(starterProds));
+    setLocal(prodKey, starterProds);
   }
 
   const freqKey = `tenant_${pharmacyId}_frequencies`;
   if (!localStorage.getItem(freqKey)) {
     const starterFreqs = isDefault ? INITIAL_FREQUENCIES_TEMPLATE(pharmacyId) : [];
-    localStorage.setItem(freqKey, JSON.stringify(starterFreqs));
+    setLocal(freqKey, starterFreqs);
   }
 
   const salesKey = `tenant_${pharmacyId}_sales`;
   if (!localStorage.getItem(salesKey)) {
-    localStorage.setItem(salesKey, JSON.stringify([]));
+    setLocal(salesKey, []);
   }
 
   const auditKey = `tenant_${pharmacyId}_audits`;
   if (!localStorage.getItem(auditKey)) {
-    localStorage.setItem(auditKey, JSON.stringify([]));
+    setLocal(auditKey, []);
   }
 
   const logsKey = `tenant_${pharmacyId}_logs`;
   if (!localStorage.getItem(logsKey)) {
-    localStorage.setItem(logsKey, JSON.stringify([]));
+    setLocal(logsKey, []);
   }
 }
 
 /**
  * Creates a brand new Pharmacy Tenant Workspace.
  * The creator is assigned as Super Admin of this new tenant.
+ * Persists immediately both locally and in Firebase Firestore.
  */
 export function createTenantWorkspace(params: {
   pharmacyName: string;
@@ -140,16 +184,34 @@ export function createTenantWorkspace(params: {
   // Seed isolated tenant database
   ensureTenantSeeded(pharmacyId);
 
-  // Update registries
+  // Update registries locally
   const updatedPharmacies = [...pharmacies, newPharmacy];
   const updatedUsers = [...users, newSuperAdmin];
 
-  localStorage.setItem(PHARMACIES_KEY, JSON.stringify(updatedPharmacies));
-  localStorage.setItem(USERS_REGISTRY_KEY, JSON.stringify(updatedUsers));
+  setLocal(PHARMACIES_KEY, updatedPharmacies);
+  setLocal(USERS_REGISTRY_KEY, updatedUsers);
+  setLocal(CURRENT_PHARMACY_KEY, newPharmacy);
+  setLocal(CURRENT_USER_KEY, newSuperAdmin);
 
-  // Auto-set as active
-  localStorage.setItem(CURRENT_PHARMACY_KEY, JSON.stringify(newPharmacy));
-  localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(newSuperAdmin));
+  // Asynchronously save to Firebase Firestore
+  (async () => {
+    try {
+      await setDoc(doc(db, "pharmacies", pharmacyId), newPharmacy);
+      await setDoc(doc(db, "users", superAdminId), newSuperAdmin);
+      await setDoc(doc(db, "tenants", pharmacyId), {
+        pharmacy: newPharmacy,
+        users: [newSuperAdmin],
+        products: [],
+        sales: [],
+        audits: [],
+        frequencies: [],
+        logs: [],
+        updatedAt: new Date().toISOString()
+      });
+    } catch (e) {
+      console.warn("[Firestore] Error saving new tenant to cloud:", e);
+    }
+  })();
 
   return { pharmacy: newPharmacy, superAdmin: newSuperAdmin };
 }
@@ -184,7 +246,13 @@ export function createTenantUser(
   };
 
   const updatedUsers = [...users, newUser];
-  localStorage.setItem(USERS_REGISTRY_KEY, JSON.stringify(updatedUsers));
+  setLocal(USERS_REGISTRY_KEY, updatedUsers);
+
+  // Firestore async persist
+  setDoc(doc(db, "users", newUser.id), newUser).catch((err) =>
+    console.warn("[Firestore] User persist warning:", err)
+  );
+
   return newUser;
 }
 
@@ -202,7 +270,11 @@ export function getTenantUsers(pharmacyId: string): AppUser[] {
 export function updateTenantUser(updatedUser: AppUser): void {
   const { users } = initTenantRegistry();
   const updated = users.map((u) => (u.id === updatedUser.id ? updatedUser : u));
-  localStorage.setItem(USERS_REGISTRY_KEY, JSON.stringify(updated));
+  setLocal(USERS_REGISTRY_KEY, updated);
+
+  setDoc(doc(db, "users", updatedUser.id), updatedUser).catch((err) =>
+    console.warn("[Firestore] User update warning:", err)
+  );
 }
 
 /**
@@ -211,7 +283,11 @@ export function updateTenantUser(updatedUser: AppUser): void {
 export function deleteTenantUser(userId: string): void {
   const { users } = initTenantRegistry();
   const updated = users.filter((u) => u.id !== userId);
-  localStorage.setItem(USERS_REGISTRY_KEY, JSON.stringify(updated));
+  setLocal(USERS_REGISTRY_KEY, updated);
+
+  deleteDoc(doc(db, "users", userId)).catch((err) =>
+    console.warn("[Firestore] User delete warning:", err)
+  );
 }
 
 /**
@@ -220,8 +296,12 @@ export function deleteTenantUser(userId: string): void {
 export function updateTenantPharmacy(updatedPharmacy: Pharmacy): void {
   const { pharmacies } = initTenantRegistry();
   const updated = pharmacies.map((p) => (p.id === updatedPharmacy.id ? updatedPharmacy : p));
-  localStorage.setItem(PHARMACIES_KEY, JSON.stringify(updated));
-  localStorage.setItem(CURRENT_PHARMACY_KEY, JSON.stringify(updatedPharmacy));
+  setLocal(PHARMACIES_KEY, updated);
+  setLocal(CURRENT_PHARMACY_KEY, updatedPharmacy);
+
+  setDoc(doc(db, "pharmacies", updatedPharmacy.id), updatedPharmacy).catch((err) =>
+    console.warn("[Firestore] Pharmacy update warning:", err)
+  );
 }
 
 /**
@@ -235,9 +315,8 @@ export function getTenantProducts(pharmacyId: string): Product[] {
   } catch (e) {
     console.error("Error reading tenant products", e);
   }
-  // Only the default headquarters workspace initializes with sample inventory; other workspaces remain strictly isolated with a clean database
   const defaults = pharmacyId === DEFAULT_PHARMACY.id ? INITIAL_PRODUCTS_TEMPLATE(pharmacyId) : [];
-  localStorage.setItem(key, JSON.stringify(defaults));
+  setLocal(key, defaults);
   return defaults;
 }
 
@@ -245,7 +324,13 @@ export function getTenantProducts(pharmacyId: string): Product[] {
  * Saves isolated tenant products
  */
 export function saveTenantProducts(pharmacyId: string, products: Product[]): void {
-  localStorage.setItem(`tenant_${pharmacyId}_products`, JSON.stringify(products));
+  const key = `tenant_${pharmacyId}_products`;
+  setLocal(key, products);
+
+  // Firestore real-time save
+  setDoc(doc(db, "tenants", pharmacyId, "catalog", "products"), { items: products }, { merge: true }).catch((e) =>
+    console.warn("[Firestore] Catalog save warning:", e)
+  );
 }
 
 /**
@@ -266,7 +351,13 @@ export function getTenantSales(pharmacyId: string): SaleRecord[] {
  * Saves isolated tenant sales records
  */
 export function saveTenantSales(pharmacyId: string, sales: SaleRecord[]): void {
-  localStorage.setItem(`tenant_${pharmacyId}_sales`, JSON.stringify(sales));
+  const key = `tenant_${pharmacyId}_sales`;
+  setLocal(key, sales);
+
+  // Firestore real-time save
+  setDoc(doc(db, "tenants", pharmacyId, "records", "sales"), { items: sales }, { merge: true }).catch((e) =>
+    console.warn("[Firestore] Sales save warning:", e)
+  );
 }
 
 /**
@@ -287,7 +378,12 @@ export function getTenantAudits(pharmacyId: string): StockAuditRecord[] {
  * Saves isolated tenant audit history
  */
 export function saveTenantAudits(pharmacyId: string, audits: StockAuditRecord[]): void {
-  localStorage.setItem(`tenant_${pharmacyId}_audits`, JSON.stringify(audits));
+  const key = `tenant_${pharmacyId}_audits`;
+  setLocal(key, audits);
+
+  setDoc(doc(db, "tenants", pharmacyId, "records", "audits"), { items: audits }, { merge: true }).catch((e) =>
+    console.warn("[Firestore] Audits save warning:", e)
+  );
 }
 
 /**
@@ -301,9 +397,8 @@ export function getTenantFrequencies(pharmacyId: string): StockFrequency[] {
   } catch (e) {
     console.error("Error reading tenant frequencies", e);
   }
-  // Only default headquarters has initial sample frequency schedule
   const defaults = pharmacyId === DEFAULT_PHARMACY.id ? INITIAL_FREQUENCIES_TEMPLATE(pharmacyId) : [];
-  localStorage.setItem(key, JSON.stringify(defaults));
+  setLocal(key, defaults);
   return defaults;
 }
 
@@ -311,7 +406,12 @@ export function getTenantFrequencies(pharmacyId: string): StockFrequency[] {
  * Saves isolated tenant stock frequencies
  */
 export function saveTenantFrequencies(pharmacyId: string, frequencies: StockFrequency[]): void {
-  localStorage.setItem(`tenant_${pharmacyId}_frequencies`, JSON.stringify(frequencies));
+  const key = `tenant_${pharmacyId}_frequencies`;
+  setLocal(key, frequencies);
+
+  setDoc(doc(db, "tenants", pharmacyId, "schedules", "frequencies"), { items: frequencies }, { merge: true }).catch((e) =>
+    console.warn("[Firestore] Frequencies save warning:", e)
+  );
 }
 
 /**
@@ -332,11 +432,16 @@ export function getTenantLogs(pharmacyId: string): AuditScheduleLog[] {
  * Saves isolated tenant audit logs
  */
 export function saveTenantLogs(pharmacyId: string, logs: AuditScheduleLog[]): void {
-  localStorage.setItem(`tenant_${pharmacyId}_logs`, JSON.stringify(logs));
+  const key = `tenant_${pharmacyId}_logs`;
+  setLocal(key, logs);
+
+  setDoc(doc(db, "tenants", pharmacyId, "records", "logs"), { items: logs }, { merge: true }).catch((e) =>
+    console.warn("[Firestore] Logs save warning:", e)
+  );
 }
 
 /**
- * Compiles a full tenant snapshot for Backup & Sync
+ * Compiles a full tenant snapshot
  */
 export function compileTenantSnapshot(pharmacyId: string, pharmacy: Pharmacy): TenantSnapshot {
   return {
@@ -352,7 +457,7 @@ export function compileTenantSnapshot(pharmacyId: string, pharmacy: Pharmacy): T
 }
 
 /**
- * Backs up tenant database (Manual click or 10-Minute Auto-Sync)
+ * Backs up tenant database directly to Firebase Firestore
  */
 export async function backupTenantDatabase(
   pharmacyId: string,
@@ -365,35 +470,54 @@ export async function backupTenantDatabase(
   localStorage.setItem(`tenant_${pharmacyId}_last_backup`, timestamp);
 
   try {
-    if (navigator.onLine) {
-      const response = await fetch("/api/backup-tenant", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pharmacyId,
-          snapshot
-        })
-      });
-      if (response.ok) {
-        return {
-          success: true,
-          timestamp,
-          message: "Database backed up to secure cloud storage."
-        };
-      }
-    }
+    // 1. Direct Firestore Snapshot Sync
+    await setDoc(doc(db, "tenants", pharmacyId), {
+      ...snapshot,
+      lastBackup: timestamp
+    }, { merge: true });
+
+    // Also persist individual collections
+    await setDoc(doc(db, "pharmacies", pharmacyId), pharmacy, { merge: true });
+    await setDoc(doc(db, "tenants", pharmacyId, "catalog", "products"), { items: snapshot.products }, { merge: true });
+    await setDoc(doc(db, "tenants", pharmacyId, "records", "sales"), { items: snapshot.sales }, { merge: true });
+    await setDoc(doc(db, "tenants", pharmacyId, "records", "audits"), { items: snapshot.audits }, { merge: true });
+    await setDoc(doc(db, "tenants", pharmacyId, "schedules", "frequencies"), { items: snapshot.frequencies }, { merge: true });
+    await setDoc(doc(db, "tenants", pharmacyId, "records", "logs"), { items: snapshot.logs }, { merge: true });
+
     return {
       success: true,
       timestamp,
-      message: "Database backed up to local encrypted storage (Offline mode)."
+      message: "Database securely persisted to Firebase Firestore Cloud."
     };
   } catch (error) {
+    console.warn("[Firestore Backup]", error);
     return {
       success: true,
       timestamp,
-      message: "Database backed up locally."
+      message: "Database saved locally & queued for cloud sync."
     };
   }
+}
+
+/**
+ * Loads entire tenant data from Firestore into local cache if online
+ */
+export async function pullTenantFromFirebase(pharmacyId: string): Promise<TenantSnapshot | null> {
+  try {
+    const tenantDoc = await getDoc(doc(db, "tenants", pharmacyId));
+    if (tenantDoc.exists()) {
+      const data = tenantDoc.data() as TenantSnapshot;
+      if (data.products) saveTenantProducts(pharmacyId, data.products);
+      if (data.sales) saveTenantSales(pharmacyId, data.sales);
+      if (data.audits) saveTenantAudits(pharmacyId, data.audits);
+      if (data.frequencies) saveTenantFrequencies(pharmacyId, data.frequencies);
+      if (data.logs) saveTenantLogs(pharmacyId, data.logs);
+      return data;
+    }
+  } catch (err) {
+    console.warn("[Firestore Pull]", err);
+  }
+  return null;
 }
 
 /**

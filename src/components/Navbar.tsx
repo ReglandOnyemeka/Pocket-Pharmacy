@@ -4,7 +4,7 @@ import {
   Shield,
   User,
   LogOut,
-  Sparkles,
+  Activity,
   CloudUpload,
   CheckCircle,
   ShoppingBag,
@@ -141,8 +141,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                   : "text-emerald-100/90 hover:text-white hover:bg-[#0e4d3c]"
               }`}
             >
-              <Sparkles className="w-5 h-5 text-[#3be8b0]" />
-              AI Intelligence
+              <Activity className="w-5 h-5 text-[#3be8b0]" />
+              Pharmacy Intelligence
             </button>
 
             {(currentRole === "super_admin" || currentRole === "admin") && (
@@ -200,7 +200,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Active User Badge */}
             <div className="hidden sm:flex flex-col items-end">
               <span className="text-sm font-bold text-white flex items-center gap-1.5">
-                {currentUser?.name || "Active Staff"}
+                {currentUser?.fullName || currentUser?.username || "Active Staff"}
               </span>
               {getRoleBadge()}
             </div>
@@ -265,7 +265,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 : "bg-[#063327] text-emerald-100/80"
             }`}
           >
-            <Sparkles className="w-4 h-4 text-[#3be8b0]" /> AI Intelligence
+            <Activity className="w-4 h-4 text-[#3be8b0]" /> Intelligence
           </button>
           {(currentRole === "super_admin" || currentRole === "admin") && (
             <button
