@@ -335,6 +335,21 @@ export function App() {
     setUsers(allU);
   };
 
+  const handleUpdateStaffUser = (updatedUser: AppUser) => {
+    if (!currentPharmacy) return;
+    updateTenantUser(updatedUser);
+    const updated = getTenantUsers(currentPharmacy.id);
+    setStaffUsers(updated);
+    const { users: allU } = initTenantRegistry();
+    setUsers(allU);
+
+    // If updating current logged in user, update state & localStorage
+    if (currentUser && currentUser.id === updatedUser.id) {
+      setCurrentUser(updatedUser);
+      localStorage.setItem("pocket_active_user", JSON.stringify(updatedUser));
+    }
+  };
+
   const handleDeleteStaffUser = (userId: string) => {
     if (!currentPharmacy) return;
     deleteTenantUser(userId);
@@ -484,6 +499,7 @@ export function App() {
             onManualBackup={handleManualBackup}
             onUpdatePharmacy={handleUpdatePharmacyProfile}
             onCreateUser={handleCreateStaffUser}
+            onUpdateUser={handleUpdateStaffUser}
             onDeleteUser={handleDeleteStaffUser}
             onUpdateProductStock={handleUpdateProductStock}
             onAddFrequency={handleAddFrequency}

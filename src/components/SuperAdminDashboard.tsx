@@ -26,9 +26,12 @@ import {
   Mail,
   RefreshCw,
   Eye,
+  EyeOff,
+  Edit,
   Check,
   X,
-  FileText
+  FileText,
+  KeyRound
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
@@ -65,6 +68,7 @@ interface SuperAdminDashboardProps {
     phone?: string;
     accessibleFeatures?: FeaturePermission[];
   }) => void;
+  onUpdateUser: (updatedUser: AppUser) => void;
   onDeleteUser: (userId: string) => void;
   onUpdateProductStock: (productId: string, newStock: number, discrepancyNotes: string) => void;
   onAddFrequency: (freq: Omit<StockFrequency, "id" | "pharmacyId">) => void;
@@ -86,6 +90,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
   onManualBackup,
   onUpdatePharmacy,
   onCreateUser,
+  onUpdateUser,
   onDeleteUser,
   onUpdateProductStock,
   onAddFrequency,
@@ -115,6 +120,72 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
   const [newStaffEmail, setNewStaffEmail] = useState("");
   const [newStaffPhone, setNewStaffPhone] = useState("");
   const [staffError, setStaffError] = useState<string | null>(null);
+
+  // Edit Staff Modal State (Password & Details editing by Super Admin)
+  const [editingStaff, setEditingStaff] = useState<AppUser | null>(null);
+  const [editFullName, setEditFullName] = useState("");
+  const [editUsername, setEditUsername] = useState("");
+  const [editRole, setEditRole] = useState<"cashier" | "admin" | "super_admin">("cashier");
+  const [editPin, setEditPin] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSuccessMsg, setEditSuccessMsg] = useState<string | null>(null);
+
+  // Password visibility state map for staff cards
+  const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
+
+  const togglePasswordVisibility = (userId: string) => {
+    setRevealedPasswords((prev) => ({
+      ...prev,
+      [userId]: !prev[userId]
+    }));
+  };
+
+  const handleOpenEditStaff = (user: AppUser) => {
+    setEditingStaff(user);
+    setEditFullName(user.fullName);
+    setEditUsername(user.username);
+    setEditRole(user.role);
+    setEditPin(user.pin);
+    setEditEmail(user.email);
+    setEditPhone(user.phone || "");
+    setEditError(null);
+    setEditSuccessMsg(null);
+  };
+
+  const handleSaveStaffEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStaff) return;
+    setEditError(null);
+
+    const cleanPass = editPin.trim();
+    if (cleanPass.length < 6 || cleanPass.length > 8) {
+      setEditError("Staff password must be between 6 and 8 characters in length.");
+      return;
+    }
+
+    if (!editFullName.trim() || !editUsername.trim() || !editEmail.trim()) {
+      setEditError("Please provide Full Name, Username, and Email.");
+      return;
+    }
+
+    onUpdateUser({
+      ...editingStaff,
+      fullName: editFullName.trim(),
+      username: editUsername.toLowerCase().trim(),
+      role: editRole,
+      pin: cleanPass,
+      email: editEmail.trim(),
+      phone: editPhone.trim() || undefined
+    });
+
+    setEditSuccessMsg("Staff credentials and password updated successfully!");
+    setTimeout(() => {
+      setEditingStaff(null);
+      setEditSuccessMsg(null);
+    }, 1200);
+  };
 
   // New Frequency Form State
   const [isAddFreqOpen, setIsAddFreqOpen] = useState(false);
@@ -970,22 +1041,50 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                     </span>
                   </div>
 
-                  <div className="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1.5 text-xs text-slate-600">
-                    <div className="font-bold text-slate-700 uppercase tracking-wider text-[10px] mb-1">
-                      Login Credentials (Created by Super Admin)
-                    </div>
+                  <div className="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-2 text-xs text-slate-600">
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-500">Username:</span>
+                      <span className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">
+                        Login Credentials
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditStaff(user)}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200"
+                        title="Edit credentials & password"
+                      >
+                        <Edit className="w-3 h-3" />
+                        Edit Password
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 font-medium">Username:</span>
                       <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">
                         {user.username}
                       </span>
                     </div>
+
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-500">Password:</span>
-                      <span className="font-mono font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                        ••••••••
-                      </span>
+                      <span className="text-slate-500 font-medium">Password:</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-bold text-emerald-800 bg-white px-2 py-0.5 rounded border border-emerald-200 text-xs">
+                          {revealedPasswords[user.id] ? user.pin : "••••••••"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => togglePasswordVisibility(user.id)}
+                          className="p-1 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded transition-colors"
+                          title={revealedPasswords[user.id] ? "Hide password" : "Show password"}
+                        >
+                          {revealedPasswords[user.id] ? (
+                            <EyeOff className="w-3.5 h-3.5" />
+                          ) : (
+                            <Eye className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </div>
                     </div>
+
                     <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
                       <span className="text-slate-500">Email:</span>
                       <span className="text-slate-700 truncate max-w-[150px] font-medium">{user.email}</span>
@@ -998,19 +1097,175 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                     Joined {new Date(user.createdAt).toLocaleDateString()}
                   </span>
 
-                  {user.role !== "super_admin" && (
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={() => onDeleteUser(user.id)}
-                      className="text-xs text-red-600 hover:text-red-700 font-semibold flex items-center gap-1 hover:underline"
+                      onClick={() => handleOpenEditStaff(user)}
+                      className="text-xs text-slate-600 hover:text-emerald-700 font-semibold flex items-center gap-1 hover:underline"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Remove
+                      <Edit className="w-3.5 h-3.5" />
+                      Edit
                     </button>
-                  )}
+
+                    {user.role !== "super_admin" && (
+                      <button
+                        onClick={() => onDeleteUser(user.id)}
+                        className="text-xs text-red-600 hover:text-red-700 font-semibold flex items-center gap-1 hover:underline ml-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Remove
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
+
+          {/* Edit Staff & Password Modal */}
+          {editingStaff && (
+            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <KeyRound className="w-5 h-5 text-emerald-600" />
+                    Edit Staff & Password
+                  </h3>
+                  <button onClick={() => setEditingStaff(null)} className="text-slate-400 hover:text-slate-600">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveStaffEdit} className="space-y-4">
+                  {editError && (
+                    <div className="p-3 bg-red-50 border border-red-200 text-xs text-red-700 rounded-xl">
+                      {editError}
+                    </div>
+                  )}
+
+                  {editSuccessMsg && (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 text-xs text-emerald-700 font-bold rounded-xl flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      {editSuccessMsg}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
+                      Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editFullName}
+                      onChange={(e) => setEditFullName(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
+                        Staff Username *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editUsername}
+                        onChange={(e) => setEditUsername(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 font-mono font-bold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
+                        Assigned Role *
+                      </label>
+                      <select
+                        value={editRole}
+                        disabled={editingStaff.role === "super_admin"}
+                        onChange={(e) => setEditRole(e.target.value as any)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 font-semibold disabled:opacity-60"
+                      >
+                        {editingStaff.role === "super_admin" ? (
+                          <option value="super_admin">Super Admin</option>
+                        ) : (
+                          <>
+                            <option value="cashier">Cashier (POS only)</option>
+                            <option value="admin">Admin (Full access)</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2">
+                    <label className="block text-xs font-bold text-emerald-900 uppercase tracking-wide">
+                      Password (6-8 characters) *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        required
+                        minLength={6}
+                        maxLength={8}
+                        placeholder="e.g. AdePass or Cash12"
+                        value={editPin}
+                        onChange={(e) => setEditPin(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-emerald-300 rounded-xl text-sm text-slate-900 font-mono font-bold tracking-wider"
+                      />
+                    </div>
+                    <p className="text-[11px] text-emerald-700">
+                      Super Admin can view and update this 6-8 character password at any time.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
+                        Email Address *
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={editEmail}
+                        onChange={(e) => setEditEmail(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
+                        Phone Number
+                      </label>
+                      <input
+                        type="tel"
+                        value={editPhone}
+                        onChange={(e) => setEditPhone(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setEditingStaff(null)}
+                      className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 text-sm font-semibold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold shadow-sm flex items-center gap-1.5"
+                    >
+                      <Check className="w-4 h-4" />
+                      Save Changes
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
 
           {/* Add Staff Modal */}
           {isAddStaffOpen && (

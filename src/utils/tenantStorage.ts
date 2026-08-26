@@ -51,8 +51,8 @@ export function initTenantRegistry(): { pharmacies: Pharmacy[]; users: AppUser[]
     users = DEFAULT_USERS;
   }
 
-  // Ensure default tenant data is seeded
-  ensureTenantSeeded(DEFAULT_PHARMACY.id);
+  // Ensure default headquarters tenant data is seeded
+  ensureTenantSeeded(DEFAULT_PHARMACY.id, true);
 
   return { pharmacies, users };
 }
@@ -60,16 +60,17 @@ export function initTenantRegistry(): { pharmacies: Pharmacy[]; users: AppUser[]
 /**
  * Ensures an isolated tenant has initial sample catalog and settings
  */
-export function ensureTenantSeeded(pharmacyId: string) {
+export function ensureTenantSeeded(pharmacyId: string, isDefault = false) {
   const prodKey = `tenant_${pharmacyId}_products`;
   if (!localStorage.getItem(prodKey)) {
-    const starterProds = INITIAL_PRODUCTS_TEMPLATE(pharmacyId);
+    // Only default tenant has initial demo products; new onboarded pharmacies start with a clean catalog
+    const starterProds = isDefault ? INITIAL_PRODUCTS_TEMPLATE(pharmacyId) : [];
     localStorage.setItem(prodKey, JSON.stringify(starterProds));
   }
 
   const freqKey = `tenant_${pharmacyId}_frequencies`;
   if (!localStorage.getItem(freqKey)) {
-    const starterFreqs = INITIAL_FREQUENCIES_TEMPLATE(pharmacyId);
+    const starterFreqs = isDefault ? INITIAL_FREQUENCIES_TEMPLATE(pharmacyId) : [];
     localStorage.setItem(freqKey, JSON.stringify(starterFreqs));
   }
 
@@ -234,7 +235,8 @@ export function getTenantProducts(pharmacyId: string): Product[] {
   } catch (e) {
     console.error("Error reading tenant products", e);
   }
-  const defaults = INITIAL_PRODUCTS_TEMPLATE(pharmacyId);
+  // Only the default headquarters workspace initializes with sample inventory; other workspaces remain strictly isolated with a clean database
+  const defaults = pharmacyId === DEFAULT_PHARMACY.id ? INITIAL_PRODUCTS_TEMPLATE(pharmacyId) : [];
   localStorage.setItem(key, JSON.stringify(defaults));
   return defaults;
 }
@@ -299,7 +301,8 @@ export function getTenantFrequencies(pharmacyId: string): StockFrequency[] {
   } catch (e) {
     console.error("Error reading tenant frequencies", e);
   }
-  const defaults = INITIAL_FREQUENCIES_TEMPLATE(pharmacyId);
+  // Only default headquarters has initial sample frequency schedule
+  const defaults = pharmacyId === DEFAULT_PHARMACY.id ? INITIAL_FREQUENCIES_TEMPLATE(pharmacyId) : [];
   localStorage.setItem(key, JSON.stringify(defaults));
   return defaults;
 }
