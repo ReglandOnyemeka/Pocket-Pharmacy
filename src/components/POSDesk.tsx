@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   Search,
   ShoppingBag,
@@ -12,7 +12,11 @@ import {
   ArrowRight,
   Sparkles,
   Package,
-  Receipt
+  Receipt,
+  ChevronLeft,
+  ChevronRight,
+  Layers,
+  ArrowUpDown
 } from "lucide-react";
 import { Product, CartItem, SaleRecord } from "../types";
 import { DRUG_CATEGORIES } from "../data/initialData";
@@ -35,6 +39,11 @@ export const POSDesk: React.FC<POSDeskProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const touchStartY = useRef<number | null>(null);
+
+  const POS_VIEW_LIMIT = 5;
 
   // Split payment state
   const [cashAmount, setCashAmount] = useState<string>("");
@@ -58,6 +67,46 @@ export const POSDesk: React.FC<POSDeskProps> = ({
       return matchesCategory && matchesSearch;
     });
   }, [products, searchQuery, selectedCategory]);
+
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedCategory]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / POS_VIEW_LIMIT));
+  const currentSafePage = Math.min(currentPage, totalPages);
+
+  const paginatedProducts = useMemo(() => {
+    const start = (currentSafePage - 1) * POS_VIEW_LIMIT;
+    return filteredProducts.slice(start, start + POS_VIEW_LIMIT);
+  }, [filteredProducts, currentSafePage]);
+
+  // Swipe handlers for mobile / touch devices
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartY.current === null) return;
+    const touchEndY = e.changedTouches[0].clientY;
+    const diffY = touchStartY.current - touchEndY;
+
+    // Threshold of 50px for vertical swipe
+    if (diffY > 50) {
+      // Swiped UP -> Next 5 products
+      if (currentSafePage < totalPages) {
+        setCurrentPage((prev) => Math.min(totalPages, prev + 1));
+        scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    } else if (diffY < -50) {
+      // Swiped DOWN -> Previous 5 products
+      if (currentSafePage > 1) {
+        setCurrentPage((prev) => Math.max(1, prev - 1));
+        scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }
+    touchStartY.current = null;
+  };
 
   // Cart calculations
   const cartTotal = useMemo(() => {
@@ -218,16 +267,69 @@ export const POSDesk: React.FC<POSDeskProps> = ({
           </div>
         </div>
 
-        {/* Product Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-h-[calc(100vh-280px)] overflow-y-auto pr-1">
+        {/* 5-Product View Bar & Swipe Instructions */}
+        <div className="flex items-center justify-between bg-emerald-50/70 border border-emerald-200/80 px-4 py-2 rounded-xl text-xs">
+          <div className="flex items-center gap-2 text-emerald-900 font-semibold">
+            <Layers className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              Showing {filteredProducts.length === 0 ? 0 : (currentSafePage - 1) * POS_VIEW_LIMIT + 1}–
+              {Math.min(currentSafePage * POS_VIEW_LIMIT, filteredProducts.length)} of {filteredProducts.length} Products
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 text-slate-500">
+            <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-emerald-700 bg-white px-2 py-0.5 rounded-md border border-emerald-200">
+              <ArrowUpDown className="w-3 h-3" /> Swipe / Scroll
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                if (currentSafePage > 1) {
+                  setCurrentPage((p) => p - 1);
+                  scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+                }
+              }}
+              disabled={currentSafePage <= 1}
+              className="p-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              title="Previous 5 products"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="font-bold text-slate-800 px-1 font-mono">
+              {currentSafePage}/{totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                if (currentSafePage < totalPages) {
+                  setCurrentPage((p) => p + 1);
+                  scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+                }
+              }}
+              disabled={currentSafePage >= totalPages}
+              className="p-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              title="Next 5 products"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Product Grid (Reduced to 5 per view with swipe support) */}
+        <div
+          ref={scrollContainerRef}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          className="space-y-3 max-h-[calc(100vh-340px)] min-h-[380px] overflow-y-auto pr-1 touch-pan-y overscroll-contain transition-all"
+        >
           {filteredProducts.length === 0 ? (
-            <div className="col-span-full bg-white rounded-2xl p-8 text-center border border-slate-200 text-slate-500">
+            <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 text-slate-500">
               <Package className="w-10 h-10 mx-auto text-slate-300 mb-2" />
               <p className="font-semibold text-slate-700">No products found matching your search</p>
               <p className="text-sm text-slate-400 mt-1">Try another search term or clear the category filter.</p>
             </div>
           ) : (
-            filteredProducts.map((p) => {
+            paginatedProducts.map((p) => {
               const inCart = cart.find((item) => item.product.id === p.id);
               const remainingStock = p.quantity - (inCart ? inCart.quantity : 0);
               const isOutOfStock = remainingStock <= 0;
@@ -235,47 +337,47 @@ export const POSDesk: React.FC<POSDeskProps> = ({
               return (
                 <div
                   key={p.id}
-                  className={`bg-white rounded-2xl p-4 border transition-all flex flex-col justify-between ${
+                  className={`bg-white rounded-2xl p-3.5 sm:p-4 border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                     isOutOfStock
                       ? "border-slate-200 opacity-60 bg-slate-50"
                       : "border-slate-200 hover:border-emerald-500 shadow-sm hover:shadow"
                   }`}
                 >
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-bold text-base text-slate-900 leading-snug">{p.name}</h3>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-bold text-base text-slate-900 leading-snug truncate">{p.name}</h3>
                       {p.pom && (
-                        <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200 shrink-0">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 shrink-0">
                           POM
                         </span>
                       )}
-                    </div>
-
-                    <p className="text-xs text-slate-500 font-medium mt-0.5">{p.api_molecule}</p>
-                    
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="text-xs px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-medium">
+                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-medium">
                         {p.category}
                       </span>
-                      <span className="text-xs text-slate-400">
+                    </div>
+
+                    <p className="text-xs text-slate-500 font-medium mt-0.5 truncate">{p.api_molecule}</p>
+                    
+                    <div className="flex items-center gap-3 mt-1 text-xs">
+                      <span className="text-slate-400 font-mono">
                         {p.drug_type}
+                      </span>
+                      <span
+                        className={`font-semibold ${
+                          remainingStock <= p.low_stock_threshold
+                            ? "text-red-600"
+                            : "text-slate-500"
+                        }`}
+                      >
+                        {isOutOfStock ? "Out of Stock" : `${remainingStock} available`}
                       </span>
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <div>
-                      <p className="text-base font-bold text-slate-900">
+                  <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 shrink-0">
+                    <div className="text-left sm:text-right">
+                      <p className="text-base sm:text-lg font-black text-slate-900 font-mono">
                         ₦{p.price.toLocaleString("en-NG")}
-                      </p>
-                      <p
-                        className={`text-xs font-medium ${
-                          remainingStock <= p.low_stock_threshold
-                            ? "text-red-600 font-semibold"
-                            : "text-slate-500"
-                        }`}
-                      >
-                        {isOutOfStock ? "Out of Stock" : `${remainingStock} left in stock`}
                       </p>
                     </div>
 
@@ -294,7 +396,7 @@ export const POSDesk: React.FC<POSDeskProps> = ({
                         className={`px-3.5 py-2 rounded-xl text-sm font-semibold flex items-center gap-1 transition-all ${
                           isOutOfStock
                             ? "bg-slate-200 text-slate-400 cursor-not-allowed"
-                            : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                            : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm hover:scale-[1.02]"
                         }`}
                       >
                         <Plus className="w-4 h-4" />
@@ -307,6 +409,28 @@ export const POSDesk: React.FC<POSDeskProps> = ({
             })
           )}
         </div>
+
+        {/* Quick Page Navigator */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-1.5 pt-1 overflow-x-auto py-1">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((num) => (
+              <button
+                key={num}
+                onClick={() => {
+                  setCurrentPage(num);
+                  scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                className={`w-7 h-7 rounded-lg text-xs font-bold font-mono transition-all ${
+                  currentSafePage === num
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {num}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Cart & Checkout Column */}

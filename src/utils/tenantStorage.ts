@@ -278,6 +278,77 @@ export function updateTenantUser(updatedUser: AppUser): void {
 }
 
 /**
+ * Resets password/PIN for Super Admin accounts only
+ */
+export function resetSuperAdminPin(
+  identifier: string,
+  newPin: string
+): { success: boolean; message: string; user?: AppUser } {
+  const { users } = initTenantRegistry();
+  const cleanId = identifier.trim().toLowerCase();
+  const cleanPin = newPin.trim();
+
+  if (!cleanPin || cleanPin.length < 4) {
+    return {
+      success: false,
+      message: "New password/PIN must be at least 4 characters long."
+    };
+  }
+
+  // Find user with super_admin role matching username or email
+  const superAdmin = users.find(
+    (u) =>
+      u.role === "super_admin" &&
+      (u.username.toLowerCase() === cleanId || u.email?.toLowerCase() === cleanId)
+  );
+
+  if (!superAdmin) {
+    // Check if the user exists but is not super_admin
+    const regularUser = users.find(
+      (u) =>
+        u.username.toLowerCase() === cleanId || u.email?.toLowerCase() === cleanId
+    );
+
+    if (regularUser) {
+      return {
+        success: false,
+        message: "Password reset on this portal is restricted to Super Admin accounts only. Please contact your Super Admin to reset staff credentials."
+      };
+    }
+
+    return {
+      success: false,
+      message: `No Super Admin account found matching "${identifier}". Please check your username or registered email.`
+    };
+  }
+
+  const updatedAdmin: AppUser = {
+    ...superAdmin,
+    pin: cleanPin
+  };
+
+  const updatedUsers = users.map((u) => (u.id === updatedAdmin.id ? updatedAdmin : u));
+  setLocal(USERS_REGISTRY_KEY, updatedUsers);
+
+  // If current active user in localStorage is this super admin, update it too
+  const activeUser = getLocal<AppUser | null>(CURRENT_USER_KEY, null);
+  if (activeUser && activeUser.id === updatedAdmin.id) {
+    setLocal(CURRENT_USER_KEY, updatedAdmin);
+  }
+
+  // Update in Firestore
+  setDoc(doc(db, "users", updatedAdmin.id), updatedAdmin).catch((err) =>
+    console.warn("[Firestore] Super admin password reset sync warning:", err)
+  );
+
+  return {
+    success: true,
+    message: `Password/PIN for Super Admin (${updatedAdmin.fullName || updatedAdmin.username}) has been successfully updated.`,
+    user: updatedAdmin
+  };
+}
+
+/**
  * Deletes a tenant user
  */
 export function deleteTenantUser(userId: string): void {

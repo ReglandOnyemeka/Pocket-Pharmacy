@@ -55,7 +55,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 onClick={onLogin}
                 className="px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-[#145a49] hover:bg-[#1c6e59] text-white transition-all border border-[#227a64]"
               >
-                Staff Login
+                Sign In
               </button>
               <button
                 type="button"

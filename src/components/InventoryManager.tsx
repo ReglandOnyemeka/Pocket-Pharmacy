@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   Package,
   Search,
@@ -12,7 +12,11 @@ import {
   AlertTriangle,
   FileSpreadsheet,
   TrendingUp,
-  Tag
+  Tag,
+  ChevronLeft,
+  ChevronRight,
+  Layers,
+  ArrowUpDown
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Product } from "../types";
@@ -41,6 +45,11 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const touchStartY = useRef<number | null>(null);
+
+  const INVENTORY_VIEW_LIMIT = 10;
 
   // Add Product Form State
   const [newName, setNewName] = useState("");
@@ -73,6 +82,46 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
       return matchesCategory && matchesSearch;
     });
   }, [products, searchQuery, selectedCategory]);
+
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedCategory]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / INVENTORY_VIEW_LIMIT));
+  const currentSafePage = Math.min(currentPage, totalPages);
+
+  const paginatedProducts = useMemo(() => {
+    const start = (currentSafePage - 1) * INVENTORY_VIEW_LIMIT;
+    return filteredProducts.slice(start, start + INVENTORY_VIEW_LIMIT);
+  }, [filteredProducts, currentSafePage]);
+
+  // Swipe handlers for mobile touch
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartY.current === null) return;
+    const touchEndY = e.changedTouches[0].clientY;
+    const diffY = touchStartY.current - touchEndY;
+
+    // Threshold of 50px for vertical swipe
+    if (diffY > 50) {
+      // Swiped UP -> Next 10 products
+      if (currentSafePage < totalPages) {
+        setCurrentPage((prev) => Math.min(totalPages, prev + 1));
+        tableContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    } else if (diffY < -50) {
+      // Swiped DOWN -> Previous 10 products
+      if (currentSafePage > 1) {
+        setCurrentPage((prev) => Math.max(1, prev - 1));
+        tableContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }
+    touchStartY.current = null;
+  };
 
   // Inventory valuation summary
   const summary = useMemo(() => {
@@ -315,11 +364,64 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
           </div>
         </div>
 
-        {/* Products Table */}
-        <div className="overflow-x-auto">
+        {/* 10-Product View Bar & Swipe Instructions */}
+        <div className="p-3 px-5 border-b border-slate-200 flex items-center justify-between bg-emerald-50/60 text-xs">
+          <div className="flex items-center gap-2 text-emerald-900 font-semibold">
+            <Layers className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              Showing {filteredProducts.length === 0 ? 0 : (currentSafePage - 1) * INVENTORY_VIEW_LIMIT + 1}–
+              {Math.min(currentSafePage * INVENTORY_VIEW_LIMIT, filteredProducts.length)} of {filteredProducts.length} Inventory Products (10 per view)
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-emerald-700 bg-white px-2.5 py-1 rounded-md border border-emerald-200">
+              <ArrowUpDown className="w-3 h-3" /> Swipe / Scroll
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                if (currentSafePage > 1) {
+                  setCurrentPage((p) => p - 1);
+                  tableContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+                }
+              }}
+              disabled={currentSafePage <= 1}
+              className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs"
+              title="Previous 10 products"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="font-bold text-slate-800 px-1 font-mono">
+              {currentSafePage}/{totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                if (currentSafePage < totalPages) {
+                  setCurrentPage((p) => p + 1);
+                  tableContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+                }
+              }}
+              disabled={currentSafePage >= totalPages}
+              className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs"
+              title="Next 10 products"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Products Table (Touch-Pan-Y Swipeable) */}
+        <div
+          ref={tableContainerRef}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          className="overflow-x-auto touch-pan-y overscroll-contain max-h-[600px] overflow-y-auto"
+        >
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-600 text-xs font-semibold uppercase tracking-wider">
+              <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-600 text-xs font-semibold uppercase tracking-wider sticky top-0 bg-slate-100 z-10">
                 <th className="py-3.5 px-4 sm:px-6">Product & Molecule</th>
                 <th className="py-3.5 px-4">Category</th>
                 <th className="py-3.5 px-4 text-right">Cost Price</th>
@@ -338,7 +440,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredProducts.map((p) => {
+                paginatedProducts.map((p) => {
                   const isLow = p.quantity <= p.low_stock_threshold;
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
@@ -415,6 +517,35 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Footer */}
+        {totalPages > 1 && (
+          <div className="p-3.5 border-t border-slate-200 bg-slate-50/60 flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-xs text-slate-500">
+              Page <span className="font-bold text-slate-800">{currentSafePage}</span> of{" "}
+              <span className="font-bold text-slate-800">{totalPages}</span> (10 items/page)
+            </p>
+
+            <div className="flex items-center gap-1.5">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((num) => (
+                <button
+                  key={num}
+                  onClick={() => {
+                    setCurrentPage(num);
+                    tableContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className={`w-7 h-7 rounded-lg text-xs font-bold font-mono transition-all ${
+                    currentSafePage === num
+                      ? "bg-emerald-600 text-white shadow-xs"
+                      : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  {num}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modal: Add New Product */}

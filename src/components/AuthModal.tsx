@@ -7,10 +7,14 @@ import {
   X,
   CheckCircle2,
   Building2,
-  LogIn
+  LogIn,
+  KeyRound,
+  ArrowLeft,
+  ShieldCheck
 } from "lucide-react";
 import { Pharmacy, AppUser } from "../types";
 import { PocketPharmacyLogo } from "./PocketPharmacyLogo";
+import { resetSuperAdminPin } from "../utils/tenantStorage";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -45,12 +49,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   showCancelButton = true,
   isFullScreen = false
 }) => {
-  const [tab, setTab] = useState<"login" | "register">("login");
+  const [tab, setTab] = useState<"login" | "register" | "reset">("login");
 
   // Login State
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
+
+  // Super Admin Password Reset State
+  const [resetIdentifier, setResetIdentifier] = useState("");
+  const [resetNewPassword, setResetNewPassword] = useState("");
+  const [resetConfirmPassword, setResetConfirmPassword] = useState("");
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetSuccess, setResetSuccess] = useState<string | null>(null);
+  const [isResetting, setIsResetting] = useState(false);
 
   // Register Tenant State (Becomes Super Admin)
   const [regPharmName, setRegPharmName] = useState("");
@@ -88,6 +100,50 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     const matchingPharm = pharmacies.find((p) => p.id === user.pharmacyId) || pharmacies[0];
     onLogin(user, matchingPharm);
     onClose();
+  };
+
+  const handleResetSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError(null);
+    setResetSuccess(null);
+
+    const cleanId = resetIdentifier.trim();
+    const cleanNewPass = resetNewPassword.trim();
+    const cleanConfirm = resetConfirmPassword.trim();
+
+    if (!cleanId) {
+      setResetError("Please enter your Super Admin username or registered email.");
+      return;
+    }
+
+    if (cleanNewPass.length < 6 || cleanNewPass.length > 8) {
+      setResetError("New password must be between 6 and 8 characters long.");
+      return;
+    }
+
+    if (cleanNewPass !== cleanConfirm) {
+      setResetError("New password and confirmation do not match.");
+      return;
+    }
+
+    setIsResetting(true);
+    const res = resetSuperAdminPin(cleanId, cleanNewPass);
+    setIsResetting(false);
+
+    if (!res.success) {
+      setResetError(res.message);
+    } else {
+      setResetSuccess(res.message);
+      setLoginUsername(cleanId);
+      setLoginPassword(cleanNewPass);
+      setTimeout(() => {
+        setTab("login");
+        setResetSuccess(null);
+        setResetIdentifier("");
+        setResetNewPassword("");
+        setResetConfirmPassword("");
+      }, 2500);
+    }
   };
 
   const handleRegisterSubmit = (e: React.FormEvent) => {
@@ -158,40 +214,61 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         {/* Original Iconic Logo Container */}
         <div className="mx-auto flex items-center justify-center">
-          <PocketPharmacyLogo size="lg" showTenantSubtitle={true} />
+          <PocketPharmacyLogo size="lg" showTenantSubtitle={false} />
         </div>
       </div>
 
       {/* ================= MODAL BODY ================= */}
       <div className="p-6 sm:p-8 overflow-y-auto space-y-6">
-        {/* Authentic Tab Switcher */}
-        <div className="grid grid-cols-2 gap-2 bg-[#f1f5f9] p-1.5 rounded-2xl border border-slate-200/80">
-          <button
-            type="button"
-            onClick={() => setTab("login")}
-            className={`py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
-              tab === "login"
-                ? "bg-[#0a4738] text-white shadow-md shadow-emerald-950/20"
-                : "text-slate-600 hover:text-[#0a4738] hover:bg-white/60"
-            }`}
-          >
-            <LogIn className="w-4 h-4" />
-            Staff Login
-          </button>
+        {/* Tab Switcher */}
+        {tab !== "reset" ? (
+          <div className="grid grid-cols-2 gap-2 bg-[#f1f5f9] p-1.5 rounded-2xl border border-slate-200/80">
+            <button
+              type="button"
+              onClick={() => setTab("login")}
+              className={`py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+                tab === "login"
+                  ? "bg-[#0a4738] text-white shadow-md shadow-emerald-950/20"
+                  : "text-slate-600 hover:text-[#0a4738] hover:bg-white/60"
+              }`}
+            >
+              <LogIn className="w-4 h-4" />
+              Sign In
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setTab("register")}
-            className={`py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
-              tab === "register"
-                ? "bg-[#0a4738] text-white shadow-md shadow-emerald-950/20"
-                : "text-slate-600 hover:text-[#0a4738] hover:bg-white/60"
-            }`}
-          >
-            <Building2 className="w-4 h-4" />
-            Onboard Pharmacy
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => setTab("register")}
+              className={`py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+                tab === "register"
+                  ? "bg-[#0a4738] text-white shadow-md shadow-emerald-950/20"
+                  : "text-slate-600 hover:text-[#0a4738] hover:bg-white/60"
+              }`}
+            >
+              <Building2 className="w-4 h-4" />
+              Onboard Pharmacy
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <button
+              type="button"
+              onClick={() => {
+                setTab("login");
+                setResetError(null);
+                setResetSuccess(null);
+              }}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 hover:text-emerald-950 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Back to Sign In
+            </button>
+            <span className="text-xs font-extrabold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 flex items-center gap-1">
+              <ShieldAlert className="w-3.5 h-3.5" />
+              Super Admin Portal Only
+            </span>
+          </div>
+        )}
 
         {/* ================= LOGIN FORM ================= */}
         {tab === "login" && (
@@ -205,7 +282,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold font-mono text-slate-600 uppercase tracking-wider mb-2">
-                STAFF USERNAME
+                USERNAME
               </label>
               <div className="relative">
                 <input
@@ -221,9 +298,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold font-mono text-slate-600 uppercase tracking-wider mb-2">
-                PASSWORD (6-8 CHARS)
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-bold font-mono text-slate-600 uppercase tracking-wider">
+                  PASSWORD (6-8 CHARS)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTab("reset");
+                    setResetError(null);
+                    setResetSuccess(null);
+                    if (loginUsername) setResetIdentifier(loginUsername);
+                  }}
+                  className="text-xs font-bold text-emerald-700 hover:text-emerald-900 hover:underline flex items-center gap-1"
+                >
+                  <KeyRound className="w-3 h-3 text-emerald-600" />
+                  Forgot Password? (Super Admin)
+                </button>
+              </div>
               <div className="relative">
                 <input
                   type="password"
@@ -236,7 +328,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <Lock className="w-5 h-5 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2" />
               </div>
               <p className="mt-2 text-[11px] font-mono text-slate-500">
-                Password is 6-8 characters assigned by Super Admin
+                Password is 6-8 characters assigned during registration or onboarding
               </p>
             </div>
 
@@ -252,6 +344,111 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               >
                 <CheckCircle2 className="w-5 h-5" />
                 Sign In to Terminal
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* ================= SUPER ADMIN PASSWORD RESET ================= */}
+        {tab === "reset" && (
+          <form onSubmit={handleResetSubmit} className="space-y-4">
+            <div className="p-4 bg-amber-50/90 border border-amber-200 text-xs rounded-2xl text-amber-900 space-y-1">
+              <p className="font-bold flex items-center gap-1.5 text-amber-950">
+                <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
+                Super Admin Account Password Reset
+              </p>
+              <p className="text-amber-800 text-[11.5px] leading-relaxed">
+                This password reset tool is strictly designated for <strong>Super Admin</strong> director accounts. Staff & Cashier credentials must be managed by the Super Admin inside the Staff & Permissions dashboard.
+              </p>
+            </div>
+
+            {resetError && (
+              <div className="p-3.5 bg-red-50 border border-red-200 text-xs text-red-700 rounded-2xl flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                <span>{resetError}</span>
+              </div>
+            )}
+
+            {resetSuccess && (
+              <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 rounded-2xl flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <div>
+                  <p className="font-bold text-emerald-950">{resetSuccess}</p>
+                  <p className="text-[11px] text-emerald-800 mt-0.5">Redirecting to Sign In...</p>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-bold font-mono text-slate-600 uppercase tracking-wider mb-1.5">
+                SUPER ADMIN USERNAME OR REGISTERED EMAIL *
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. michael_superadmin or director@pharm.com"
+                  value={resetIdentifier}
+                  onChange={(e) => setResetIdentifier(e.target.value)}
+                  className="w-full pl-3.5 pr-10 py-3 bg-[#f8fafc] border border-slate-200 rounded-xl text-sm font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a4738]"
+                />
+                <User className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold font-mono text-slate-600 uppercase tracking-wider mb-1.5">
+                NEW PASSWORD (6-8 CHARS) *
+              </label>
+              <div className="relative">
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  maxLength={8}
+                  placeholder="Enter new 6-8 character password"
+                  value={resetNewPassword}
+                  onChange={(e) => setResetNewPassword(e.target.value)}
+                  className="w-full pl-3.5 pr-10 py-3 bg-[#f8fafc] border border-slate-200 rounded-xl text-sm font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a4738]"
+                />
+                <Lock className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold font-mono text-slate-600 uppercase tracking-wider mb-1.5">
+                CONFIRM NEW PASSWORD *
+              </label>
+              <div className="relative">
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  maxLength={8}
+                  placeholder="Re-enter new password"
+                  value={resetConfirmPassword}
+                  onChange={(e) => setResetConfirmPassword(e.target.value)}
+                  className="w-full pl-3.5 pr-10 py-3 bg-[#f8fafc] border border-slate-200 rounded-xl text-sm font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a4738]"
+                />
+                <Lock className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+              </div>
+            </div>
+
+            <div className="pt-2 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setTab("login")}
+                className="w-1/3 py-3 rounded-xl border border-slate-300 text-slate-700 font-bold text-sm hover:bg-slate-50 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isResetting || !resetIdentifier.trim() || !resetNewPassword.trim()}
+                className="w-2/3 py-3 rounded-xl bg-[#0a4738] hover:bg-[#0d5947] disabled:opacity-50 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                {isResetting ? "Updating..." : "Reset Super Admin Password"}
               </button>
             </div>
           </form>
@@ -438,3 +635,4 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     </div>
   );
 };
+
