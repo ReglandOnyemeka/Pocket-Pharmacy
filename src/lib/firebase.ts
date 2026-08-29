@@ -8,7 +8,8 @@ import {
   getDocs,
   query,
   where,
-  deleteDoc
+  deleteDoc,
+  onSnapshot
 } from "firebase/firestore";
 import firebaseConfig from "../../firebase-applet-config.json";
 
@@ -28,5 +29,6 @@ export {
   getDocs,
   query,
   where,
-  deleteDoc
+  deleteDoc,
+  onSnapshot
 };

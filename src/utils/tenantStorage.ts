@@ -21,13 +21,17 @@ import {
   setDoc,
   getDocs,
   collection,
-  deleteDoc
+  deleteDoc,
+  onSnapshot
 } from "../lib/firebase";
 
 const PHARMACIES_KEY = "pocket_pharmacies_registry";
 const USERS_REGISTRY_KEY = "pocket_users_global_registry";
 const CURRENT_USER_KEY = "pocket_active_user";
 const CURRENT_PHARMACY_KEY = "pocket_active_pharmacy";
+
+type RegistryListener = (pharmacies: Pharmacy[], users: AppUser[]) => void;
+const registryListeners = new Set<RegistryListener>();
 
 /**
  * Checks local cache or memory fallback
@@ -51,7 +55,95 @@ function setLocal<T>(key: string, value: T): void {
 }
 
 /**
- * Initializes default multi-tenant registry from LocalStorage + asynchronous Firestore sync
+ * Subscribes React components to real-time registry updates
+ */
+export function subscribeTenantRegistry(listener: RegistryListener): () => void {
+  registryListeners.add(listener);
+  return () => {
+    registryListeners.delete(listener);
+  };
+}
+
+function notifyRegistryListeners(pharmacies: Pharmacy[], users: AppUser[]) {
+  registryListeners.forEach((fn) => {
+    try {
+      fn(pharmacies, users);
+    } catch (e) {
+      console.warn("[Storage] Listener notification error:", e);
+    }
+  });
+}
+
+let isRealtimeListenerAttached = false;
+
+/**
+ * Attaches real-time Firestore listeners for global multi-tenant syncing
+ */
+function setupRegistryRealtimeListener() {
+  if (isRealtimeListenerAttached) return;
+  isRealtimeListenerAttached = true;
+
+  try {
+    // 1. Listen to pharmacies
+    onSnapshot(
+      collection(db, "pharmacies"),
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const cloudPharmacies: Pharmacy[] = [];
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data() as Pharmacy;
+            if (data && data.id) cloudPharmacies.push(data);
+          });
+
+          if (cloudPharmacies.length > 0) {
+            const currentLocal = getLocal<Pharmacy[]>(PHARMACIES_KEY, [DEFAULT_PHARMACY]);
+            const mergedMap = new Map<string, Pharmacy>();
+            currentLocal.forEach((p) => mergedMap.set(p.id, p));
+            cloudPharmacies.forEach((p) => mergedMap.set(p.id, p));
+            const merged = Array.from(mergedMap.values());
+            setLocal(PHARMACIES_KEY, merged);
+
+            const currentUsers = getLocal<AppUser[]>(USERS_REGISTRY_KEY, DEFAULT_USERS);
+            notifyRegistryListeners(merged, currentUsers);
+          }
+        }
+      },
+      (err) => console.warn("[Firestore] Pharmacies live sync warning:", err)
+    );
+
+    // 2. Listen to users
+    onSnapshot(
+      collection(db, "users"),
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const cloudUsers: AppUser[] = [];
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data() as AppUser;
+            if (data && data.id) cloudUsers.push(data);
+          });
+
+          if (cloudUsers.length > 0) {
+            const currentLocal = getLocal<AppUser[]>(USERS_REGISTRY_KEY, DEFAULT_USERS);
+            const mergedMap = new Map<string, AppUser>();
+            currentLocal.forEach((u) => mergedMap.set(u.id, u));
+            cloudUsers.forEach((u) => mergedMap.set(u.id, u));
+            const merged = Array.from(mergedMap.values());
+            setLocal(USERS_REGISTRY_KEY, merged);
+
+            const currentPharmacies = getLocal<Pharmacy[]>(PHARMACIES_KEY, [DEFAULT_PHARMACY]);
+            notifyRegistryListeners(currentPharmacies, merged);
+          }
+        }
+      },
+      (err) => console.warn("[Firestore] Users live sync warning:", err)
+    );
+  } catch (e) {
+    console.warn("[Firestore] Could not attach real-time registry listener:", e);
+  }
+}
+
+/**
+ * Initializes default multi-tenant registry from LocalStorage + bidirectional Firestore sync
  */
 export function initTenantRegistry(): { pharmacies: Pharmacy[]; users: AppUser[] } {
   let pharmacies = getLocal<Pharmacy[]>(PHARMACIES_KEY, [DEFAULT_PHARMACY]);
@@ -66,6 +158,9 @@ export function initTenantRegistry(): { pharmacies: Pharmacy[]; users: AppUser[]
   // Seed default tenant local structures
   ensureTenantSeeded(DEFAULT_PHARMACY.id, true);
 
+  // Set up real-time listener
+  setupRegistryRealtimeListener();
+
   // Asynchronously synchronize global registry with Firebase
   syncRegistryWithFirebase(pharmacies, users).catch((e) =>
     console.warn("[Firestore] Silent registry sync warning:", e)
@@ -75,10 +170,14 @@ export function initTenantRegistry(): { pharmacies: Pharmacy[]; users: AppUser[]
 }
 
 /**
- * Syncs pharmacies and users with Firestore
+ * Syncs pharmacies and users with Firestore bi-directionally
  */
-async function syncRegistryWithFirebase(localPharmacies: Pharmacy[], localUsers: AppUser[]) {
+export async function syncRegistryWithFirebase(localPharmacies: Pharmacy[], localUsers: AppUser[]) {
   try {
+    let updatedPharmacies = [...localPharmacies];
+    let updatedUsers = [...localUsers];
+    let changed = false;
+
     // 1. Fetch cloud pharmacies
     const pharmSnapshot = await getDocs(collection(db, "pharmacies"));
     if (pharmSnapshot.empty) {
@@ -86,6 +185,19 @@ async function syncRegistryWithFirebase(localPharmacies: Pharmacy[], localUsers:
       for (const p of localPharmacies) {
         await setDoc(doc(db, "pharmacies", p.id), p);
       }
+    } else {
+      const cloudPharmacies: Pharmacy[] = [];
+      pharmSnapshot.forEach((docSnap) => {
+        const p = docSnap.data() as Pharmacy;
+        if (p && p.id) cloudPharmacies.push(p);
+      });
+
+      const pharmMap = new Map<string, Pharmacy>();
+      localPharmacies.forEach((p) => pharmMap.set(p.id, p));
+      cloudPharmacies.forEach((p) => pharmMap.set(p.id, p));
+      updatedPharmacies = Array.from(pharmMap.values());
+      changed = true;
+      setLocal(PHARMACIES_KEY, updatedPharmacies);
     }
 
     // 2. Fetch cloud users
@@ -95,10 +207,173 @@ async function syncRegistryWithFirebase(localPharmacies: Pharmacy[], localUsers:
       for (const u of localUsers) {
         await setDoc(doc(db, "users", u.id), u);
       }
+    } else {
+      const cloudUsers: AppUser[] = [];
+      userSnapshot.forEach((docSnap) => {
+        const u = docSnap.data() as AppUser;
+        if (u && u.id) cloudUsers.push(u);
+      });
+
+      const userMap = new Map<string, AppUser>();
+      localUsers.forEach((u) => userMap.set(u.id, u));
+      cloudUsers.forEach((u) => userMap.set(u.id, u));
+      updatedUsers = Array.from(userMap.values());
+      changed = true;
+      setLocal(USERS_REGISTRY_KEY, updatedUsers);
     }
+
+    if (changed) {
+      notifyRegistryListeners(updatedPharmacies, updatedUsers);
+    }
+
+    return { pharmacies: updatedPharmacies, users: updatedUsers };
   } catch (err) {
     console.warn("[Firestore] Sync registry error:", err);
+    return { pharmacies: localPharmacies, users: localUsers };
   }
+}
+
+/**
+ * Performs robust asynchronous authentication against local cache and cloud Firestore
+ */
+export async function authenticateUser(
+  identifier: string,
+  pin: string
+): Promise<{
+  success: boolean;
+  message?: string;
+  user?: AppUser;
+  pharmacy?: Pharmacy;
+}> {
+  const cleanId = identifier.trim().toLowerCase();
+  const cleanPin = pin.trim();
+
+  if (!cleanId || !cleanPin) {
+    return { success: false, message: "Please enter both username/email and password." };
+  }
+
+  // 1. Check local registry first
+  const { users: localUsers, pharmacies: localPharmacies } = initTenantRegistry();
+  
+  const matchLocal = localUsers.find((u) => {
+    const uName = (u.username || "").toLowerCase().trim();
+    const uEmail = (u.email || "").toLowerCase().trim();
+    return uName === cleanId || uEmail === cleanId;
+  });
+
+  if (matchLocal) {
+    const isPinMatch =
+      matchLocal.pin === cleanPin ||
+      matchLocal.pin.toLowerCase() === cleanPin.toLowerCase() ||
+      String(matchLocal.pin).trim() === cleanPin;
+
+    if (isPinMatch) {
+      const matchPharm =
+        localPharmacies.find((p) => p.id === matchLocal.pharmacyId) || DEFAULT_PHARMACY;
+      
+      // Async pull cloud tenant data to ensure freshest state
+      pullTenantFromFirebase(matchLocal.pharmacyId).catch(() => null);
+      
+      return {
+        success: true,
+        user: matchLocal,
+        pharmacy: matchPharm
+      };
+    }
+  }
+
+  // 2. Direct Cloud Verification via Firestore (handles fresh domains/browsers & updated credentials)
+  try {
+    const userSnapshot = await getDocs(collection(db, "users"));
+    let foundCloudUser: AppUser | null = null;
+
+    if (!userSnapshot.empty) {
+      userSnapshot.forEach((docSnap) => {
+        const u = docSnap.data() as AppUser;
+        if (u) {
+          const uName = (u.username || "").toLowerCase().trim();
+          const uEmail = (u.email || "").toLowerCase().trim();
+          if (uName === cleanId || uEmail === cleanId) {
+            foundCloudUser = u;
+          }
+        }
+      });
+    }
+
+    if (foundCloudUser) {
+      const cloudUser = foundCloudUser as AppUser;
+      const isPinMatch =
+        cloudUser.pin === cleanPin ||
+        cloudUser.pin.toLowerCase() === cleanPin.toLowerCase() ||
+        String(cloudUser.pin).trim() === cleanPin;
+
+      if (!isPinMatch) {
+        return {
+          success: false,
+          message: "Incorrect password. Please verify your credentials or use Forgot Password."
+        };
+      }
+
+      // Fetch corresponding pharmacy from cloud if not present locally
+      let matchingPharm = localPharmacies.find((p) => p.id === cloudUser.pharmacyId);
+      if (!matchingPharm) {
+        try {
+          const pharmDoc = await getDoc(doc(db, "pharmacies", cloudUser.pharmacyId));
+          if (pharmDoc.exists()) {
+            matchingPharm = pharmDoc.data() as Pharmacy;
+          }
+        } catch (e) {
+          console.warn("[Firestore] Fetch user pharmacy warning:", e);
+        }
+      }
+
+      if (!matchingPharm) {
+        matchingPharm = {
+          ...DEFAULT_PHARMACY,
+          id: cloudUser.pharmacyId,
+          name: "Pharmacy Terminal"
+        };
+      }
+
+      // Merge into local registry
+      const updatedUsers = [...localUsers.filter((u) => u.id !== cloudUser.id), cloudUser];
+      const updatedPharmacies = [
+        ...localPharmacies.filter((p) => p.id !== matchingPharm!.id),
+        matchingPharm
+      ];
+
+      setLocal(USERS_REGISTRY_KEY, updatedUsers);
+      setLocal(PHARMACIES_KEY, updatedPharmacies);
+      setLocal(CURRENT_USER_KEY, cloudUser);
+      setLocal(CURRENT_PHARMACY_KEY, matchingPharm);
+
+      notifyRegistryListeners(updatedPharmacies, updatedUsers);
+
+      // Hydrate tenant catalog & database from cloud
+      await pullTenantFromFirebase(cloudUser.pharmacyId);
+
+      return {
+        success: true,
+        user: cloudUser,
+        pharmacy: matchingPharm
+      };
+    }
+  } catch (cloudErr) {
+    console.warn("[Firestore] Cloud authentication error:", cloudErr);
+  }
+
+  // 3. If local user matched but PIN failed
+  if (matchLocal) {
+    return {
+      success: false,
+      message: "Incorrect password. Please verify your credentials or use Forgot Password."
+    };
+  }
+
+  return {
+    success: false,
+    message: "No account found matching this username or email. Please verify credentials or register a new workspace."
+  };
 }
 
 /**
@@ -173,9 +448,9 @@ export function createTenantWorkspace(params: {
     username: params.username.toLowerCase().trim(),
     fullName: params.directorName,
     role: "super_admin",
-    pin: params.pin,
-    email: params.email,
-    phone: params.phone,
+    pin: params.pin.trim(),
+    email: params.email.trim(),
+    phone: params.phone.trim(),
     pharmacyId,
     accessibleFeatures: ["sales", "inventory", "audits", "ai_consult", "admin_panel"],
     createdAt: new Date().toISOString()
@@ -193,7 +468,9 @@ export function createTenantWorkspace(params: {
   setLocal(CURRENT_PHARMACY_KEY, newPharmacy);
   setLocal(CURRENT_USER_KEY, newSuperAdmin);
 
-  // Asynchronously save to Firebase Firestore
+  notifyRegistryListeners(updatedPharmacies, updatedUsers);
+
+  // Save to Firebase Firestore immediately
   (async () => {
     try {
       await setDoc(doc(db, "pharmacies", pharmacyId), newPharmacy);
@@ -231,7 +508,7 @@ export function createTenantUser(
     accessibleFeatures?: ("sales" | "inventory" | "audits" | "ai_consult" | "admin_panel")[];
   }
 ): AppUser {
-  const { users } = initTenantRegistry();
+  const { users, pharmacies } = initTenantRegistry();
   const newUser: AppUser = {
     id: `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     username: userData.username.toLowerCase().trim(),
@@ -247,6 +524,7 @@ export function createTenantUser(
 
   const updatedUsers = [...users, newUser];
   setLocal(USERS_REGISTRY_KEY, updatedUsers);
+  notifyRegistryListeners(pharmacies, updatedUsers);
 
   // Firestore async persist
   setDoc(doc(db, "users", newUser.id), newUser).catch((err) =>
@@ -268,9 +546,10 @@ export function getTenantUsers(pharmacyId: string): AppUser[] {
  * Updates a tenant user
  */
 export function updateTenantUser(updatedUser: AppUser): void {
-  const { users } = initTenantRegistry();
+  const { users, pharmacies } = initTenantRegistry();
   const updated = users.map((u) => (u.id === updatedUser.id ? updatedUser : u));
   setLocal(USERS_REGISTRY_KEY, updated);
+  notifyRegistryListeners(pharmacies, updated);
 
   setDoc(doc(db, "users", updatedUser.id), updatedUser).catch((err) =>
     console.warn("[Firestore] User update warning:", err)
@@ -278,35 +557,56 @@ export function updateTenantUser(updatedUser: AppUser): void {
 }
 
 /**
- * Resets password/PIN for Super Admin accounts only
+ * Resets password/PIN for Super Admin accounts with cloud & local sync
  */
-export function resetSuperAdminPin(
+export async function resetSuperAdminPin(
   identifier: string,
   newPin: string
-): { success: boolean; message: string; user?: AppUser } {
-  const { users } = initTenantRegistry();
+): Promise<{ success: boolean; message: string; user?: AppUser }> {
+  const { users, pharmacies } = initTenantRegistry();
   const cleanId = identifier.trim().toLowerCase();
   const cleanPin = newPin.trim();
 
-  if (!cleanPin || cleanPin.length < 4) {
+  if (!cleanPin || cleanPin.length < 6 || cleanPin.length > 8) {
     return {
       success: false,
-      message: "New password/PIN must be at least 4 characters long."
+      message: "New password/PIN must be between 6 and 8 characters long."
     };
   }
 
-  // Find user with super_admin role matching username or email
-  const superAdmin = users.find(
+  // 1. Search locally
+  let superAdmin = users.find(
     (u) =>
       u.role === "super_admin" &&
-      (u.username.toLowerCase() === cleanId || u.email?.toLowerCase() === cleanId)
+      (u.username.toLowerCase() === cleanId || (u.email && u.email.toLowerCase() === cleanId))
   );
+
+  // 2. If not found locally, search Firestore
+  if (!superAdmin) {
+    try {
+      const userSnapshot = await getDocs(collection(db, "users"));
+      if (!userSnapshot.empty) {
+        userSnapshot.forEach((docSnap) => {
+          const u = docSnap.data() as AppUser;
+          if (
+            u &&
+            u.role === "super_admin" &&
+            (u.username.toLowerCase() === cleanId || (u.email && u.email.toLowerCase() === cleanId))
+          ) {
+            superAdmin = u;
+          }
+        });
+      }
+    } catch (err) {
+      console.warn("[Firestore] Password reset search error:", err);
+    }
+  }
 
   if (!superAdmin) {
     // Check if the user exists but is not super_admin
     const regularUser = users.find(
       (u) =>
-        u.username.toLowerCase() === cleanId || u.email?.toLowerCase() === cleanId
+        u.username.toLowerCase() === cleanId || (u.email && u.email.toLowerCase() === cleanId)
     );
 
     if (regularUser) {
@@ -327,8 +627,9 @@ export function resetSuperAdminPin(
     pin: cleanPin
   };
 
-  const updatedUsers = users.map((u) => (u.id === updatedAdmin.id ? updatedAdmin : u));
+  const updatedUsers = [...users.filter((u) => u.id !== updatedAdmin.id), updatedAdmin];
   setLocal(USERS_REGISTRY_KEY, updatedUsers);
+  notifyRegistryListeners(pharmacies, updatedUsers);
 
   // If current active user in localStorage is this super admin, update it too
   const activeUser = getLocal<AppUser | null>(CURRENT_USER_KEY, null);
@@ -337,13 +638,15 @@ export function resetSuperAdminPin(
   }
 
   // Update in Firestore
-  setDoc(doc(db, "users", updatedAdmin.id), updatedAdmin).catch((err) =>
-    console.warn("[Firestore] Super admin password reset sync warning:", err)
-  );
+  try {
+    await setDoc(doc(db, "users", updatedAdmin.id), updatedAdmin);
+  } catch (err) {
+    console.warn("[Firestore] Super admin password reset sync warning:", err);
+  }
 
   return {
     success: true,
-    message: `Password/PIN for Super Admin (${updatedAdmin.fullName || updatedAdmin.username}) has been successfully updated.`,
+    message: `Password for Super Admin (${updatedAdmin.fullName || updatedAdmin.username}) has been successfully updated.`,
     user: updatedAdmin
   };
 }
@@ -352,9 +655,10 @@ export function resetSuperAdminPin(
  * Deletes a tenant user
  */
 export function deleteTenantUser(userId: string): void {
-  const { users } = initTenantRegistry();
+  const { users, pharmacies } = initTenantRegistry();
   const updated = users.filter((u) => u.id !== userId);
   setLocal(USERS_REGISTRY_KEY, updated);
+  notifyRegistryListeners(pharmacies, updated);
 
   deleteDoc(doc(db, "users", userId)).catch((err) =>
     console.warn("[Firestore] User delete warning:", err)
@@ -365,10 +669,11 @@ export function deleteTenantUser(userId: string): void {
  * Updates pharmacy profile
  */
 export function updateTenantPharmacy(updatedPharmacy: Pharmacy): void {
-  const { pharmacies } = initTenantRegistry();
+  const { pharmacies, users } = initTenantRegistry();
   const updated = pharmacies.map((p) => (p.id === updatedPharmacy.id ? updatedPharmacy : p));
   setLocal(PHARMACIES_KEY, updated);
   setLocal(CURRENT_PHARMACY_KEY, updatedPharmacy);
+  notifyRegistryListeners(updated, users);
 
   setDoc(doc(db, "pharmacies", updatedPharmacy.id), updatedPharmacy).catch((err) =>
     console.warn("[Firestore] Pharmacy update warning:", err)
@@ -575,15 +880,76 @@ export async function backupTenantDatabase(
  */
 export async function pullTenantFromFirebase(pharmacyId: string): Promise<TenantSnapshot | null> {
   try {
+    // 1. Check main tenant document
     const tenantDoc = await getDoc(doc(db, "tenants", pharmacyId));
     if (tenantDoc.exists()) {
       const data = tenantDoc.data() as TenantSnapshot;
-      if (data.products) saveTenantProducts(pharmacyId, data.products);
-      if (data.sales) saveTenantSales(pharmacyId, data.sales);
-      if (data.audits) saveTenantAudits(pharmacyId, data.audits);
-      if (data.frequencies) saveTenantFrequencies(pharmacyId, data.frequencies);
-      if (data.logs) saveTenantLogs(pharmacyId, data.logs);
+      if (data.products && Array.isArray(data.products)) saveTenantProducts(pharmacyId, data.products);
+      if (data.sales && Array.isArray(data.sales)) saveTenantSales(pharmacyId, data.sales);
+      if (data.audits && Array.isArray(data.audits)) saveTenantAudits(pharmacyId, data.audits);
+      if (data.frequencies && Array.isArray(data.frequencies)) saveTenantFrequencies(pharmacyId, data.frequencies);
+      if (data.logs && Array.isArray(data.logs)) saveTenantLogs(pharmacyId, data.logs);
       return data;
+    }
+
+    // 2. Check subcollections fallback
+    const [catalogSnap, salesSnap, auditsSnap, freqSnap, logsSnap] = await Promise.allSettled([
+      getDoc(doc(db, "tenants", pharmacyId, "catalog", "products")),
+      getDoc(doc(db, "tenants", pharmacyId, "records", "sales")),
+      getDoc(doc(db, "tenants", pharmacyId, "records", "audits")),
+      getDoc(doc(db, "tenants", pharmacyId, "schedules", "frequencies")),
+      getDoc(doc(db, "tenants", pharmacyId, "records", "logs"))
+    ]);
+
+    let hadSubcollectionData = false;
+
+    if (catalogSnap.status === "fulfilled" && catalogSnap.value.exists()) {
+      const prods = catalogSnap.value.data()?.items;
+      if (Array.isArray(prods)) {
+        saveTenantProducts(pharmacyId, prods);
+        hadSubcollectionData = true;
+      }
+    }
+    if (salesSnap.status === "fulfilled" && salesSnap.value.exists()) {
+      const sales = salesSnap.value.data()?.items;
+      if (Array.isArray(sales)) {
+        saveTenantSales(pharmacyId, sales);
+        hadSubcollectionData = true;
+      }
+    }
+    if (auditsSnap.status === "fulfilled" && auditsSnap.value.exists()) {
+      const audits = auditsSnap.value.data()?.items;
+      if (Array.isArray(audits)) {
+        saveTenantAudits(pharmacyId, audits);
+        hadSubcollectionData = true;
+      }
+    }
+    if (freqSnap.status === "fulfilled" && freqSnap.value.exists()) {
+      const freqs = freqSnap.value.data()?.items;
+      if (Array.isArray(freqs)) {
+        saveTenantFrequencies(pharmacyId, freqs);
+        hadSubcollectionData = true;
+      }
+    }
+    if (logsSnap.status === "fulfilled" && logsSnap.value.exists()) {
+      const logs = logsSnap.value.data()?.items;
+      if (Array.isArray(logs)) {
+        saveTenantLogs(pharmacyId, logs);
+        hadSubcollectionData = true;
+      }
+    }
+
+    if (hadSubcollectionData) {
+      return {
+        pharmacy: getLocal<Pharmacy[]>(PHARMACIES_KEY, [DEFAULT_PHARMACY]).find((p) => p.id === pharmacyId) || DEFAULT_PHARMACY,
+        users: getTenantUsers(pharmacyId),
+        products: getTenantProducts(pharmacyId),
+        sales: getTenantSales(pharmacyId),
+        audits: getTenantAudits(pharmacyId),
+        frequencies: getTenantFrequencies(pharmacyId),
+        logs: getTenantLogs(pharmacyId),
+        lastBackup: new Date().toISOString()
+      };
     }
   } catch (err) {
     console.warn("[Firestore Pull]", err);

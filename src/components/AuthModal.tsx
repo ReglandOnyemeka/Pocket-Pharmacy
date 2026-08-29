@@ -10,11 +10,12 @@ import {
   LogIn,
   KeyRound,
   ArrowLeft,
-  ShieldCheck
+  ShieldCheck,
+  Loader2
 } from "lucide-react";
 import { Pharmacy, AppUser } from "../types";
 import { PocketPharmacyLogo } from "./PocketPharmacyLogo";
-import { resetSuperAdminPin } from "../utils/tenantStorage";
+import { resetSuperAdminPin, authenticateUser } from "../utils/tenantStorage";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -55,6 +56,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   // Super Admin Password Reset State
   const [resetIdentifier, setResetIdentifier] = useState("");
@@ -78,31 +80,35 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
 
-    const cleanUser = loginUsername.toLowerCase().trim();
+    const cleanUser = loginUsername.trim();
     const cleanPass = loginPassword.trim();
 
-    // Check credentials (matches username and pin/password)
-    const user = users.find(
-      (u) =>
-        u.username.toLowerCase() === cleanUser &&
-        (u.pin === cleanPass || u.pin.toLowerCase() === cleanPass.toLowerCase())
-    );
-
-    if (!user) {
-      setLoginError("Invalid username or password. Please verify your credentials.");
+    if (!cleanUser || !cleanPass) {
+      setLoginError("Please provide both your username/email and password.");
       return;
     }
 
-    const matchingPharm = pharmacies.find((p) => p.id === user.pharmacyId) || pharmacies[0];
-    onLogin(user, matchingPharm);
-    onClose();
+    setIsAuthenticating(true);
+    try {
+      const res = await authenticateUser(cleanUser, cleanPass);
+      if (!res.success || !res.user || !res.pharmacy) {
+        setLoginError(res.message || "Invalid username or password. Please verify your credentials.");
+      } else {
+        onLogin(res.user, res.pharmacy);
+        onClose();
+      }
+    } catch (err: any) {
+      setLoginError(err?.message || "An authentication error occurred. Please try again.");
+    } finally {
+      setIsAuthenticating(false);
+    }
   };
 
-  const handleResetSubmit = (e: React.FormEvent) => {
+  const handleResetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setResetError(null);
     setResetSuccess(null);
@@ -127,22 +133,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
 
     setIsResetting(true);
-    const res = resetSuperAdminPin(cleanId, cleanNewPass);
-    setIsResetting(false);
-
-    if (!res.success) {
-      setResetError(res.message);
-    } else {
-      setResetSuccess(res.message);
-      setLoginUsername(cleanId);
-      setLoginPassword(cleanNewPass);
-      setTimeout(() => {
-        setTab("login");
-        setResetSuccess(null);
-        setResetIdentifier("");
-        setResetNewPassword("");
-        setResetConfirmPassword("");
-      }, 2500);
+    try {
+      const res = await resetSuperAdminPin(cleanId, cleanNewPass);
+      if (!res.success) {
+        setResetError(res.message);
+      } else {
+        setResetSuccess(res.message);
+        setLoginUsername(cleanId);
+        setLoginPassword(cleanNewPass);
+        setTimeout(() => {
+          setTab("login");
+          setResetSuccess(null);
+          setResetIdentifier("");
+          setResetNewPassword("");
+          setResetConfirmPassword("");
+        }, 2500);
+      }
+    } catch (err: any) {
+      setResetError(err?.message || "Could not reset password. Please try again.");
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -337,15 +347,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <div className="pt-1">
               <button
                 type="submit"
-                disabled={!isLoginFormFilled}
+                disabled={!isLoginFormFilled || isAuthenticating}
                 className={`w-full py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 shadow-sm ${
-                  isLoginFormFilled
+                  isLoginFormFilled && !isAuthenticating
                     ? "bg-[#0a4738] hover:bg-[#0d5947] text-white shadow-md cursor-pointer"
                     : "bg-[#cbd5e1] text-white cursor-not-allowed"
                 }`}
               >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Sign In to Terminal</span>
+                {isAuthenticating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    <span>Verifying Credentials...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Sign In to Terminal</span>
+                  </>
+                )}
               </button>
             </div>
 

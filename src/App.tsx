@@ -29,7 +29,9 @@ import {
   getTenantLogs,
   saveTenantLogs,
   backupTenantDatabase,
-  getLastBackupTime
+  getLastBackupTime,
+  subscribeTenantRegistry,
+  pullTenantFromFirebase
 } from "./utils/tenantStorage";
 import { Navbar } from "./components/Navbar";
 import { POSDesk } from "./components/POSDesk";
@@ -86,11 +88,17 @@ function AppContent() {
     setLastBackupTime(getLastBackupTime(pharmacyId));
   }, []);
 
-  // 2. Initial Multi-Tenant Boot
+  // 2. Initial Multi-Tenant Boot & Real-Time Cloud Listener
   useEffect(() => {
     const { pharmacies: initialPharmacies, users: initialUsers } = initTenantRegistry();
     setPharmacies(initialPharmacies);
     setUsers(initialUsers);
+
+    // Subscribe to live cloud updates for pharmacies and users
+    const unsubscribe = subscribeTenantRegistry((updatedPharmacies, updatedUsers) => {
+      setPharmacies(updatedPharmacies);
+      setUsers(updatedUsers);
+    });
 
     // Check saved active user/pharmacy
     const savedUserRaw = localStorage.getItem("pocket_active_user");
@@ -122,6 +130,8 @@ function AppContent() {
       setCurrentPharmacy(activeP);
       loadTenantData(activeP.id);
     }
+
+    return () => unsubscribe();
   }, [loadTenantData]);
 
   // 3. Automated 10-Minute Background Sync (When Online)
@@ -173,8 +183,17 @@ function AppContent() {
     localStorage.setItem("pocket_active_user", JSON.stringify(user));
     localStorage.setItem("pocket_active_pharmacy", JSON.stringify(pharmacy));
     loadTenantData(pharmacy.id);
+    setIsViewingLanding(false);
+    setIsAuthModalOpen(false);
     setActiveTab(user.role === "cashier" ? "pos" : "pos");
     notifySuccess("Welcome Back", `Signed in to ${pharmacy.name} as ${user.fullName}.`);
+
+    // Asynchronously pull cloud tenant catalog/records if any exist
+    pullTenantFromFirebase(pharmacy.id).then((snapshot) => {
+      if (snapshot) {
+        loadTenantData(pharmacy.id);
+      }
+    }).catch(() => null);
   }, [loadTenantData, notifySuccess]);
 
   // 6. Multi-Tenant Registration (Creates new Super Admin & isolated workspace)
