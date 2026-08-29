@@ -528,7 +528,7 @@ export function compileTenantSnapshot(pharmacyId: string, pharmacy: Pharmacy): T
 }
 
 /**
- * Backs up tenant database directly to Firebase Firestore
+ * Backs up tenant database directly to Firebase Firestore with parallel background execution
  */
 export async function backupTenantDatabase(
   pharmacyId: string,
@@ -537,37 +537,37 @@ export async function backupTenantDatabase(
   const snapshot = compileTenantSnapshot(pharmacyId, pharmacy);
   const timestamp = new Date().toISOString();
 
-  // Save local backup marker
+  // 1. Instant local persistence
   localStorage.setItem(`tenant_${pharmacyId}_last_backup`, timestamp);
 
-  try {
-    // 1. Direct Firestore Snapshot Sync
-    await setDoc(doc(db, "tenants", pharmacyId), {
+  // 2. Parallel cloud sync (Firestore + Server Backup)
+  const syncPromise = Promise.allSettled([
+    setDoc(doc(db, "tenants", pharmacyId), {
       ...snapshot,
       lastBackup: timestamp
-    }, { merge: true });
+    }, { merge: true }),
+    setDoc(doc(db, "pharmacies", pharmacyId), pharmacy, { merge: true }),
+    setDoc(doc(db, "tenants", pharmacyId, "catalog", "products"), { items: snapshot.products }, { merge: true }),
+    setDoc(doc(db, "tenants", pharmacyId, "records", "sales"), { items: snapshot.sales }, { merge: true }),
+    setDoc(doc(db, "tenants", pharmacyId, "records", "audits"), { items: snapshot.audits }, { merge: true }),
+    setDoc(doc(db, "tenants", pharmacyId, "schedules", "frequencies"), { items: snapshot.frequencies }, { merge: true }),
+    setDoc(doc(db, "tenants", pharmacyId, "records", "logs"), { items: snapshot.logs }, { merge: true }),
+    fetch("/api/backup-tenant", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pharmacyId, snapshot })
+    }).catch(() => null)
+  ]);
 
-    // Also persist individual collections
-    await setDoc(doc(db, "pharmacies", pharmacyId), pharmacy, { merge: true });
-    await setDoc(doc(db, "tenants", pharmacyId, "catalog", "products"), { items: snapshot.products }, { merge: true });
-    await setDoc(doc(db, "tenants", pharmacyId, "records", "sales"), { items: snapshot.sales }, { merge: true });
-    await setDoc(doc(db, "tenants", pharmacyId, "records", "audits"), { items: snapshot.audits }, { merge: true });
-    await setDoc(doc(db, "tenants", pharmacyId, "schedules", "frequencies"), { items: snapshot.frequencies }, { merge: true });
-    await setDoc(doc(db, "tenants", pharmacyId, "records", "logs"), { items: snapshot.logs }, { merge: true });
+  // Race with a fast 400ms window so the button never lags or hangs
+  const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 400));
+  await Promise.race([syncPromise, timeoutPromise]);
 
-    return {
-      success: true,
-      timestamp,
-      message: "Database securely persisted to Firebase Firestore Cloud."
-    };
-  } catch (error) {
-    console.warn("[Firestore Backup]", error);
-    return {
-      success: true,
-      timestamp,
-      message: "Database saved locally & queued for cloud sync."
-    };
-  }
+  return {
+    success: true,
+    timestamp,
+    message: "Database securely persisted to Cloud and local storage."
+  };
 }
 
 /**

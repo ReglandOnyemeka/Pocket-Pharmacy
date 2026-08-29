@@ -130,3 +130,25 @@ export interface TenantSnapshot {
   logs: AuditScheduleLog[];
   lastBackup: string;
 }
+
+export type ToastType = "success" | "upload" | "checkout" | "product_added" | "info" | "warning" | "error";
+
+export interface ToastNotification {
+  id: string;
+  type: ToastType;
+  title: string;
+  message?: string;
+  details?: {
+    productName?: string;
+    quantity?: number;
+    price?: number;
+    receiptId?: string;
+    totalAmount?: number;
+    itemsCount?: number;
+    fileName?: string;
+    count?: number;
+    paymentMethod?: string;
+    timestamp?: string;
+  };
+  durationMs?: number;
+}

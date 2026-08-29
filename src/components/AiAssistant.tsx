@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import {
-  Activity,
+  Zap,
   Search,
   CheckCircle2,
   AlertCircle,
@@ -10,7 +10,10 @@ import {
   ShoppingBag,
   Boxes,
   ShieldCheck,
-  FileText
+  FileText,
+  Sparkles,
+  Globe2,
+  Gauge
 } from "lucide-react";
 import { Product } from "../types";
 
@@ -34,6 +37,8 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
   const [category, setCategory] = useState(initialProduct?.category || "General");
   const [loading, setLoading] = useState(false);
   const [aiResponse, setAiResponse] = useState<string | null>(null);
+  const [aiProvider, setAiProvider] = useState<string>("Pharventory AI");
+  const [executionTimeMs, setExecutionTimeMs] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Compute live instant in-house database alternatives
@@ -79,9 +84,10 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
     setLoading(true);
     setError(null);
     setAiResponse(null);
+    const startTime = performance.now();
 
     try {
-      // Prepare sanitized database products payload for Gemini
+      // Prepare sanitized database products payload for Pharventory AI
       const databasePayload = products.map((p) => ({
         id: p.id,
         name: p.name,
@@ -106,11 +112,17 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
       });
 
       const data = await res.json();
+      const elapsed = Math.round(performance.now() - startTime);
+      setExecutionTimeMs(elapsed);
+
       if (!res.ok) {
-        throw new Error(data.error || "Failed to generate clinical consult.");
+        throw new Error(data.error || "Failed to generate AI clinical consult.");
       }
 
       setAiResponse(data.result);
+      if (data.provider) {
+        setAiProvider(data.provider);
+      }
     } catch (err: any) {
       setError(err.message || "An error occurred while communicating with the AI model.");
     } finally {
@@ -128,25 +140,33 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       
-      {/* Header */}
+      {/* Header with Pharventory Intelligence Branding */}
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start justify-between gap-4">
         <div className="flex items-start gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
-            <Activity className="w-6 h-6" />
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 shrink-0 shadow-sm">
+            <Zap className="w-6 h-6 fill-amber-500 text-amber-600" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-              Clinical Drug Consult & Market Intelligence Engine
-            </h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-xl font-bold text-slate-900">
+                Pharventory Intelligence Engine
+              </h2>
+            </div>
             <p className="text-sm text-slate-500 mt-1">
-              Cross-references alternatives directly from <strong>{pharmacyName}'s inventory database</strong> and registered Nigerian market benchmarks.
+              Cross-references <strong>internal inventory records</strong> with <strong>external Nigerian market benchmarks & clinical pharmacology</strong> at ultra-low latency.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 bg-emerald-50 px-3.5 py-2 rounded-xl border border-emerald-200 text-xs text-emerald-800 shrink-0 font-medium">
-          <Database className="w-4 h-4 text-emerald-600" />
-          <span>{products.length} Products in Store Database</span>
+        <div className="flex flex-wrap sm:flex-col items-end gap-1.5 shrink-0">
+          <div className="flex items-center gap-2 bg-emerald-50 px-3.5 py-1.5 rounded-xl border border-emerald-200 text-xs text-emerald-800 font-medium">
+            <Database className="w-3.5 h-3.5 text-emerald-600" />
+            <span>{products.length} Products in In-House Database</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-400">
+            <Globe2 className="w-3 h-3 text-slate-400" />
+            <span>Nigerian Market & Bio-Equivalency Mode</span>
+          </div>
         </div>
       </div>
 
@@ -163,7 +183,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
                 placeholder="e.g. Augmentin 625mg, Rocephin, Lonart, Ventolin"
                 value={brandName}
                 onChange={(e) => setBrandName(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0a4738]"
               />
             </div>
 
@@ -176,58 +196,65 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
                 placeholder="e.g. Co-amoxiclav, Ceftriaxone, Artemether, Salbutamol"
                 value={molecule}
                 onChange={(e) => setMolecule(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0a4738]"
               />
             </div>
           </div>
 
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-2">
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-              <span className="font-semibold">Quick Consults:</span>
+              <span className="font-semibold text-slate-700">Quick Consults:</span>
               <button
                 type="button"
                 onClick={() => setQuickQuery("Augmentin 625mg", "Co-amoxiclav", "Antibiotics")}
-                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium"
+                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer transition-colors"
               >
                 Augmentin
               </button>
               <button
                 type="button"
                 onClick={() => setQuickQuery("Ventolin Inhaler", "Salbutamol", "Inhalers & Respiratory")}
-                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium"
+                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer transition-colors"
               >
                 Ventolin
               </button>
               <button
                 type="button"
                 onClick={() => setQuickQuery("Glucophage 500mg", "Metformin", "Antidiabetics")}
-                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium"
+                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer transition-colors"
               >
                 Glucophage
               </button>
               <button
                 type="button"
                 onClick={() => setQuickQuery("Lonart DS", "Artemether + Lumefantrine", "Antimalarials")}
-                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium"
+                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer transition-colors"
               >
                 Lonart DS
+              </button>
+              <button
+                type="button"
+                onClick={() => setQuickQuery("Rocephin 1g", "Ceftriaxone", "Injections & IV Fluids")}
+                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer transition-colors"
+              >
+                Rocephin
               </button>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm flex items-center gap-2 shadow-sm transition-all disabled:opacity-50"
+              className="px-6 py-2.5 rounded-xl bg-[#0a4738] hover:bg-[#145a49] text-white font-bold text-sm flex items-center gap-2 shadow-md transition-all disabled:opacity-50 cursor-pointer"
             >
               {loading ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Cross-referencing Database...
+                  <Loader2 className="w-4 h-4 animate-spin text-[#3be8b0]" />
+                  <span>Consulting AI...</span>
                 </>
               ) : (
                 <>
-                  <Search className="w-4 h-4" />
-                  Generate Consult & Benchmark
+                  <Sparkles className="w-4 h-4 text-[#3be8b0]" />
+                  <span>Consult AI</span>
                 </>
               )}
             </button>
@@ -242,23 +269,23 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
         )}
       </div>
 
-      {/* ================= IN-HOUSE INVENTORY MATCHES (FROM DATABASE) ================= */}
+      {/* ================= INTERNAL IN-HOUSE INVENTORY MATCHES ================= */}
       {(brandName.trim() || molecule.trim()) && (
         <div className="bg-white rounded-2xl p-6 border border-emerald-200/80 shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center">
                 <Database className="w-4 h-4" />
               </div>
               <div>
                 <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
-                  Matching In-House Database Alternatives
-                  <span className="text-xs font-normal text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                    {databaseMatches.length} Found in Store
+                  In-House Inventory Alternatives (Internal Store Data)
+                  <span className="text-xs font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
+                    {databaseMatches.length} in {pharmacyName}
                   </span>
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Products currently in your database sharing the active ingredient (<em>{molecule || brandName}</em>) or category.
+                  Direct stock matching active ingredient (<em>{molecule || brandName}</em>) or category in your store.
                 </p>
               </div>
             </div>
@@ -267,9 +294,9 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
           {databaseMatches.length === 0 ? (
             <div className="p-5 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 text-sm text-slate-500">
               <Boxes className="w-8 h-8 mx-auto text-slate-400 mb-2" />
-              <p className="font-medium text-slate-700">No matching alternatives found in your local store database.</p>
+              <p className="font-semibold text-slate-700">No direct bio-equivalent found in {pharmacyName}'s store database.</p>
               <p className="text-xs text-slate-500 mt-0.5">
-                Check the Nigerian Market equivalents generated by the AI below for registered brand options to order.
+                Pharventory AI provides external Nigerian market equivalents below for registered brand procurement options.
               </p>
             </div>
           ) : (
@@ -293,7 +320,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
                             {product.api_molecule}
                           </p>
                         </div>
-                        <span className="text-xs font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">
+                        <span className="text-xs font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-2xs">
                           ₦{product.price.toLocaleString()}
                         </span>
                       </div>
@@ -301,8 +328,8 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
                       <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11px]">
                         {isExactMolecule && (
                           <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold border border-emerald-200 flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" />
-                            Exact Bio-Equivalent
+                            <CheckCircle2 className="w-3 h-3 text-emerald-700" />
+                            In-Store Bio-Equivalent
                           </span>
                         )}
                         <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-medium">
@@ -329,7 +356,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
                         <button
                           type="button"
                           onClick={() => onSelectProductForPOS(product)}
-                          className="px-2.5 py-1 rounded-lg bg-[#0a4738] hover:bg-[#145a49] text-white text-xs font-bold flex items-center gap-1 transition-all"
+                          className="px-2.5 py-1 rounded-lg bg-[#0a4738] hover:bg-[#145a49] text-white text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shadow-xs"
                         >
                           <ShoppingBag className="w-3 h-3" />
                           <span>Dispense in POS</span>
@@ -344,18 +371,36 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
         </div>
       )}
 
-      {/* Intelligence Response Card */}
+      {/* ================= PHARVENTORY AI CLINICAL & MARKET BENCHMARK RESPONSE ================= */}
       {aiResponse && (
-        <div className="p-6 rounded-2xl bg-slate-900 text-slate-100 border border-slate-800 shadow-inner space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <div className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-emerald-400" />
-              <span className="font-bold text-sm text-white">Pharmacist Intelligence & Market Benchmark Output</span>
+        <div className="p-6 rounded-2xl bg-slate-900 text-slate-100 border border-slate-800 shadow-xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-amber-400/20 text-amber-400 flex items-center justify-center">
+                <Zap className="w-4 h-4 fill-amber-400" />
+              </div>
+              <div>
+                <span className="font-bold text-sm text-white block">
+                  Pharventory Clinical & Market Intelligence Analysis
+                </span>
+                <span className="text-xs text-slate-400 font-mono">
+                  Cross-referenced internal database + external Nigerian benchmarks
+                </span>
+              </div>
             </div>
-            <span className="text-xs px-2.5 py-1 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 font-semibold flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              Clinical Reference
-            </span>
+
+            <div className="flex items-center gap-2">
+              {executionTimeMs !== null && (
+                <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/50">
+                  <Gauge className="w-3 h-3" />
+                  {executionTimeMs}ms
+                </span>
+              )}
+              <span className="text-xs px-2.5 py-1 rounded bg-slate-800 text-amber-300 border border-slate-700 font-semibold flex items-center gap-1 font-mono">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                {aiProvider}
+              </span>
+            </div>
           </div>
 
           <div className="prose prose-invert max-w-none text-sm sm:text-base leading-relaxed text-slate-200 whitespace-pre-line font-sans">
@@ -366,3 +411,4 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
     </div>
   );
 };
+

@@ -16,11 +16,18 @@ import {
   ChevronLeft,
   ChevronRight,
   Layers,
-  ArrowUpDown
+  ArrowUpDown,
+  Info,
+  CheckCircle2,
+  FileCheck,
+  HelpCircle,
+  Sparkles,
+  ArrowRight
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Product } from "../types";
 import { DRUG_CATEGORIES, DRUG_TYPES } from "../data/initialData";
+import { useToast } from "../context/ToastContext";
 
 interface InventoryManagerProps {
   products: Product[];
@@ -41,13 +48,22 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
   pharmacyId,
   canEditInventory
 }) => {
+  const { notifySuccess, notifyError, notifyUpload } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const touchStartY = useRef<number | null>(null);
+
+  // Bulk Upload State
+  const [bulkFile, setBulkFile] = useState<File | null>(null);
+  const [parsedBulkProducts, setParsedBulkProducts] = useState<Omit<Product, "id">[]>([]);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [isDraggingBulk, setIsDraggingBulk] = useState(false);
+  const modalFileInputRef = useRef<HTMLInputElement>(null);
 
   const INVENTORY_VIEW_LIMIT = 10;
 
@@ -178,6 +194,199 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
     setEditingProduct(null);
   };
 
+  // Download Sample Excel Template
+  const handleDownloadSampleTemplate = () => {
+    const sampleRows = [
+      {
+        "Product Name": "Amoxil 500mg",
+        "API Active Ingredient": "Amoxicillin Trihydrate",
+        Category: "Antibiotics",
+        "Drug Type": "Capsule",
+        "Selling Price (NGN)": 2500,
+        "Cost Price (NGN)": 1800,
+        "Current Stock Quantity": 120,
+        "Low Stock Threshold": 20,
+        "Expiry Month": 11,
+        "Expiry Year": 2027,
+        "Prescription Only (POM)": "Yes"
+      },
+      {
+        "Product Name": "Emzor Paracetamol 500mg",
+        "API Active Ingredient": "Paracetamol",
+        Category: "Analgesics & Pain",
+        "Drug Type": "Tablet",
+        "Selling Price (NGN)": 800,
+        "Cost Price (NGN)": 500,
+        "Current Stock Quantity": 250,
+        "Low Stock Threshold": 30,
+        "Expiry Month": 8,
+        "Expiry Year": 2028,
+        "Prescription Only (POM)": "No"
+      },
+      {
+        "Product Name": "Coartem 80/480mg",
+        "API Active Ingredient": "Artemether / Lumefantrine",
+        Category: "Antimalarial",
+        "Drug Type": "Tablet",
+        "Selling Price (NGN)": 3200,
+        "Cost Price (NGN)": 2400,
+        "Current Stock Quantity": 75,
+        "Low Stock Threshold": 15,
+        "Expiry Month": 10,
+        "Expiry Year": 2027,
+        "Prescription Only (POM)": "No"
+      },
+      {
+        "Product Name": "Ventolin Inhaler 100mcg",
+        "API Active Ingredient": "Salbutamol Sulfate",
+        Category: "Respiratory",
+        "Drug Type": "Inhaler",
+        "Selling Price (NGN)": 4500,
+        "Cost Price (NGN)": 3500,
+        "Current Stock Quantity": 40,
+        "Low Stock Threshold": 10,
+        "Expiry Month": 5,
+        "Expiry Year": 2027,
+        "Prescription Only (POM)": "Yes"
+      }
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(sampleRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Inventory Upload Template");
+    XLSX.writeFile(workbook, "Pocket_Pharmacy_Bulk_Template.xlsx");
+    notifySuccess("Template Downloaded", "Pocket_Pharmacy_Bulk_Template.xlsx is ready for editing.");
+  };
+
+  // Process and parse uploaded Excel/CSV file
+  const handleProcessFile = (file: File) => {
+    setBulkError(null);
+    setBulkFile(file);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const workbook = XLSX.read(bstr, { type: "binary" });
+        const wsname = workbook.SheetNames[0];
+        if (!wsname) {
+          setBulkError("The uploaded spreadsheet has no sheets.");
+          setParsedBulkProducts([]);
+          return;
+        }
+        const ws = workbook.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json<any>(ws);
+
+        if (!data || data.length === 0) {
+          setBulkError("The selected spreadsheet contains no data rows to import.");
+          setParsedBulkProducts([]);
+          return;
+        }
+
+        const parsedProducts: Omit<Product, "id">[] = [];
+        data.forEach((row) => {
+          const name =
+            row["Product Name"] ||
+            row["Name"] ||
+            row["name"] ||
+            row["Product"] ||
+            row["Medication"];
+          if (name && String(name).trim().length > 0) {
+            const price =
+              parseFloat(
+                row["Selling Price (NGN)"] ||
+                  row["Selling Price"] ||
+                  row["Price"] ||
+                  row["price"]
+              ) || 1000;
+            const cost_price =
+              parseFloat(
+                row["Cost Price (NGN)"] ||
+                  row["Cost Price"] ||
+                  row["Cost"] ||
+                  row["cost_price"]
+              ) || Math.round(price * 0.7);
+            const quantity =
+              parseInt(
+                row["Current Stock Quantity"] ||
+                  row["Quantity"] ||
+                  row["quantity"] ||
+                  row["Stock"],
+                10
+              ) || 0;
+            const low_threshold =
+              parseInt(
+                row["Low Stock Threshold"] ||
+                  row["Low Stock"] ||
+                  row["low_stock_threshold"],
+                10
+              ) || 10;
+            const exp_month =
+              parseInt(row["Expiry Month"] || row["Exp Month"], 10) || 12;
+            const exp_year =
+              parseInt(row["Expiry Year"] || row["Exp Year"], 10) || 2027;
+            const pom_val = String(
+              row["Prescription Only (POM)"] ||
+                row["POM"] ||
+                row["Prescription Only"] ||
+                ""
+            ).toLowerCase();
+
+            parsedProducts.push({
+              name: String(name).trim(),
+              api_molecule: String(
+                row["API Active Ingredient"] ||
+                  row["Molecule"] ||
+                  row["Active Ingredient"] ||
+                  name
+              ).trim(),
+              category: String(row["Category"] || "Other").trim(),
+              drug_type: (row["Drug Type"] || row["Type"] || "Tablet") as any,
+              price,
+              cost_price,
+              quantity,
+              low_stock_threshold: low_threshold,
+              expiry_month: exp_month,
+              expiry_year: exp_year,
+              pom: pom_val === "yes" || pom_val === "true" || pom_val === "1",
+              pharmacyId
+            });
+          }
+        });
+
+        if (parsedProducts.length === 0) {
+          setBulkError(
+            "Could not recognize any valid products. Please ensure the Excel file has a 'Product Name' column."
+          );
+          setParsedBulkProducts([]);
+        } else {
+          setParsedBulkProducts(parsedProducts);
+        }
+      } catch (err) {
+        console.error("Excel parse error", err);
+        setBulkError(
+          "Failed to parse file. Please verify it is a valid .xlsx, .xls, or .csv spreadsheet."
+        );
+        setParsedBulkProducts([]);
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleConfirmBulkUpload = () => {
+    if (parsedBulkProducts.length === 0) return;
+    onBulkImport(parsedBulkProducts);
+    handleCloseBulkModal();
+  };
+
+  const handleCloseBulkModal = () => {
+    setIsBulkModalOpen(false);
+    setBulkFile(null);
+    setParsedBulkProducts([]);
+    setBulkError(null);
+    if (modalFileInputRef.current) modalFileInputRef.current.value = "";
+  };
+
   // Export to Excel
   const handleExportExcel = () => {
     const exportData = products.map((p) => ({
@@ -198,55 +407,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Pharmacy Inventory");
     XLSX.writeFile(workbook, `Pocket_Pharmacy_Inventory_${new Date().toISOString().slice(0, 10)}.xlsx`);
-  };
-
-  // Import from Excel
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const bstr = evt.target?.result;
-        const workbook = XLSX.read(bstr, { type: "binary" });
-        const wsname = workbook.SheetNames[0];
-        const ws = workbook.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json<any>(ws);
-
-        const parsedProducts: Omit<Product, "id">[] = [];
-        data.forEach((row) => {
-          const name = row["Product Name"] || row["Name"] || row["name"];
-          if (name) {
-            const price = parseFloat(row["Selling Price (NGN)"] || row["Price"] || row["price"]) || 1000;
-            const cost_price = parseFloat(row["Cost Price (NGN)"] || row["Cost"] || row["cost_price"]) || Math.round(price * 0.7);
-            const quantity = parseInt(row["Current Stock Quantity"] || row["Quantity"] || row["quantity"], 10) || 0;
-            parsedProducts.push({
-              name: String(name).trim(),
-              api_molecule: String(row["API Active Ingredient"] || row["Molecule"] || name).trim(),
-              category: String(row["Category"] || "Other").trim(),
-              drug_type: (row["Drug Type"] as any) || "Tablet",
-              price,
-              cost_price,
-              quantity,
-              low_stock_threshold: parseInt(row["Low Stock Threshold"], 10) || 10,
-              expiry_month: parseInt(row["Expiry Month"], 10) || 12,
-              expiry_year: parseInt(row["Expiry Year"], 10) || 2027,
-              pom: String(row["Prescription Only (POM)"]).toLowerCase() === "yes",
-              pharmacyId
-            });
-          }
-        });
-
-        if (parsedProducts.length > 0) {
-          onBulkImport(parsedProducts);
-        }
-      } catch (err) {
-        console.error("Excel import error", err);
-      }
-    };
-    reader.readAsBinaryString(file);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    notifySuccess("Inventory Exported", `Generated spreadsheet with ${products.length} products.`);
   };
 
   return (
@@ -309,24 +470,18 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
 
             {canEditInventory && (
               <>
-                <label
-                  title="Upload an Excel (.xlsx, .xls) or CSV file for bulk product entry"
-                  className="px-3.5 py-2 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs sm:text-sm flex items-center gap-2 shadow-sm cursor-pointer transition-all"
+                <button
+                  type="button"
+                  onClick={() => setIsBulkModalOpen(true)}
+                  className="px-3.5 py-2 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs sm:text-sm flex items-center gap-2 shadow-xs transition-all cursor-pointer"
                 >
-                  <Upload className="w-4 h-4 text-cyan-600" />
-                  Bulk Product entry
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileUpload}
-                    accept=".xlsx, .xls, .csv"
-                    className="hidden"
-                  />
-                </label>
+                  <Upload className="w-4 h-4 text-[#0a4738]" />
+                  Bulk Upload
+                </button>
 
                 <button
                   onClick={() => setIsAddModalOpen(true)}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-all"
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-all cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
                   Add Product
@@ -412,12 +567,87 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
           </div>
         </div>
 
-        {/* Products Table (Touch-Pan-Y Swipeable) */}
+        {/* Mobile Product Card List (sm:hidden) */}
+        <div className="sm:hidden divide-y divide-slate-100 max-h-[600px] overflow-y-auto p-3 space-y-3">
+          {filteredProducts.length === 0 ? (
+            <div className="py-12 text-center text-slate-400">
+              <Package className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+              <p className="font-semibold text-slate-600">No inventory products found</p>
+            </div>
+          ) : (
+            paginatedProducts.map((p) => {
+              const isLow = p.quantity <= p.low_stock_threshold;
+              return (
+                <div key={p.id} className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-3.5 space-y-2.5 shadow-xs">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-slate-900 text-sm leading-snug">{p.name}</span>
+                        {p.pom && (
+                          <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
+                            POM
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 font-medium truncate">{p.api_molecule}</p>
+                    </div>
+
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold font-mono shrink-0 ${
+                        p.quantity === 0
+                          ? "bg-red-100 text-red-700 border border-red-200"
+                          : isLow
+                          ? "bg-amber-100 text-amber-700 border border-amber-200"
+                          : "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                      }`}
+                    >
+                      {p.quantity} in stock
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs bg-white p-2.5 rounded-xl border border-slate-200/60">
+                    <div>
+                      <span className="text-slate-400 text-[10px] uppercase font-semibold block">Selling Price</span>
+                      <span className="font-bold text-slate-900 font-mono text-sm">₦{p.price.toLocaleString("en-NG")}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 text-[10px] uppercase font-semibold block">Expiry / Category</span>
+                      <span className="font-semibold text-slate-700">
+                        {String(p.expiry_month).padStart(2, "0")}/{p.expiry_year} • {p.category}
+                      </span>
+                    </div>
+                  </div>
+
+                  {canEditInventory && (
+                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-200/60">
+                      <button
+                        onClick={() => setEditingProduct(p)}
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-emerald-50 hover:text-emerald-700 border border-slate-200 flex items-center gap-1 cursor-pointer transition-all shadow-xs"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                        <span>Edit</span>
+                      </button>
+                      <button
+                        onClick={() => onDeleteProduct(p.id)}
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold text-red-600 bg-white hover:bg-red-50 border border-red-200 flex items-center gap-1 cursor-pointer transition-all shadow-xs"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop / Tablet Products Table (hidden sm:block) */}
         <div
           ref={tableContainerRef}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
-          className="overflow-x-auto touch-pan-y overscroll-contain max-h-[600px] overflow-y-auto"
+          className="hidden sm:block overflow-x-auto touch-pan-y overscroll-contain max-h-[600px] overflow-y-auto"
         >
           <table className="w-full text-left border-collapse">
             <thead>
@@ -495,14 +725,14 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                           <div className="flex items-center justify-center gap-1.5">
                             <button
                               onClick={() => setEditingProduct(p)}
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
                               title="Edit product"
                             >
                               <Edit2 className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => onDeleteProduct(p.id)}
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                               title="Delete product"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -857,18 +1087,415 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                 <button
                   type="button"
                   onClick={() => setEditingProduct(null)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold text-sm"
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold text-sm cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm"
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm cursor-pointer"
                 >
                   Save Changes
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Upload Guidance & Import Modal */}
+      {isBulkModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-3xl w-full p-5 sm:p-7 shadow-2xl border border-slate-200 my-auto max-h-[92vh] flex flex-col">
+            
+            {/* Modal Header */}
+            <div className="flex justify-between items-start pb-4 border-b border-slate-100 shrink-0">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 bg-emerald-100 text-[#0a4738] rounded-2xl shadow-xs">
+                  <FileSpreadsheet className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                    Bulk Inventory Upload Guide
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                    Structure your Excel (.xlsx, .xls) or CSV spreadsheet using the columns below for successful import
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseBulkModal}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Content Body */}
+            <div className="flex-1 overflow-y-auto py-4 space-y-5 pr-1">
+              
+              {/* Template Download & Key Note Banner */}
+              <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <Info className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
+                  <div className="text-xs text-emerald-900 leading-relaxed">
+                    <p className="font-bold text-emerald-950 text-sm">
+                      Recommended: Use Our Pre-Formatted Excel Template
+                    </p>
+                    <p className="mt-0.5 text-emerald-800">
+                      Download the ready-to-fill spreadsheet with correct column headers, sample pharmacy stock items, and pricing structures.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadSampleTemplate}
+                  className="shrink-0 px-3.5 py-2 rounded-xl bg-[#0a4738] hover:bg-[#145a49] text-[#3be8b0] hover:text-white font-bold text-xs flex items-center gap-2 shadow-xs transition-all cursor-pointer w-full sm:w-auto justify-center"
+                >
+                  <Download className="w-4 h-4" />
+                  Download Sample Template (.xlsx)
+                </button>
+              </div>
+
+              {/* Required & Optional Column Layout Guide */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2.5 flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-emerald-600" />
+                  Expected Excel Columns & Data Types
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  
+                  {/* Required Column: Product Name */}
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono font-bold text-xs text-slate-900">
+                        Product Name
+                      </span>
+                      <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-red-100 text-red-800 border border-red-200">
+                        Required
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Medication trade name & strength (e.g. <span className="font-semibold text-slate-700">Amoxil 500mg</span>, <span className="font-semibold text-slate-700">Coartem 80/480</span>).
+                    </p>
+                  </div>
+
+                  {/* Required Column: Selling Price */}
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono font-bold text-xs text-slate-900">
+                        Selling Price (NGN)
+                      </span>
+                      <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-red-100 text-red-800 border border-red-200">
+                        Required
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Unit sales price in Naira (e.g. <span className="font-semibold text-slate-700">2500</span>, <span className="font-semibold text-slate-700">800</span>). Numeric without symbols.
+                    </p>
+                  </div>
+
+                  {/* Optional Column: API Molecule */}
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono font-bold text-xs text-slate-900">
+                        API Active Ingredient
+                      </span>
+                      <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-slate-200 text-slate-700">
+                        Optional
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Generic chemical molecule (e.g. <span className="font-semibold text-slate-700">Amoxicillin</span>, <span className="font-semibold text-slate-700">Paracetamol</span>).
+                    </p>
+                  </div>
+
+                  {/* Optional Column: Category */}
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono font-bold text-xs text-slate-900">
+                        Category
+                      </span>
+                      <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-slate-200 text-slate-700">
+                        Optional
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      E.g. <span className="font-semibold text-slate-700">Antibiotics, Antimalarial, Analgesics & Pain, Cardiovascular</span>.
+                    </p>
+                  </div>
+
+                  {/* Optional Column: Drug Type */}
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono font-bold text-xs text-slate-900">
+                        Drug Type
+                      </span>
+                      <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-slate-200 text-slate-700">
+                        Optional
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      <span className="font-semibold text-slate-700">Tablet, Capsule, Syrup, Suspension, Inhaler, Injection, Ointment, Drops</span>.
+                    </p>
+                  </div>
+
+                  {/* Optional Column: Current Stock */}
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono font-bold text-xs text-slate-900">
+                        Current Stock Quantity
+                      </span>
+                      <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-slate-200 text-slate-700">
+                        Optional
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Initial inventory unit count on shelf (e.g. <span className="font-semibold text-slate-700">120</span>). Defaults to 0.
+                    </p>
+                  </div>
+
+                  {/* Optional Column: Cost Price */}
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono font-bold text-xs text-slate-900">
+                        Cost Price (NGN)
+                      </span>
+                      <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-slate-200 text-slate-700">
+                        Optional
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Purchase / wholesale unit cost (defaults to 70% of selling price).
+                    </p>
+                  </div>
+
+                  {/* Optional Column: Expiry & POM */}
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono font-bold text-xs text-slate-900">
+                        Expiry & POM (Prescription)
+                      </span>
+                      <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-slate-200 text-slate-700">
+                        Optional
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      <span className="font-semibold text-slate-700">Expiry Month</span> (1-12), <span className="font-semibold text-slate-700">Expiry Year</span> (e.g. 2027), <span className="font-semibold text-slate-700">Prescription Only</span> (Yes/No).
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Visual Sample Spreadsheet Preview Table */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2 flex items-center gap-1.5">
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-slate-500" />
+                  Visual Spreadsheet Layout Example
+                </h4>
+                
+                <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-xs">
+                  <table className="min-w-full text-[11px] text-left border-collapse">
+                    <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 whitespace-nowrap">
+                      <tr>
+                        <th className="p-2 border-r border-slate-200 bg-emerald-50 text-emerald-900">Product Name *</th>
+                        <th className="p-2 border-r border-slate-200">API Active Ingredient</th>
+                        <th className="p-2 border-r border-slate-200">Category</th>
+                        <th className="p-2 border-r border-slate-200">Drug Type</th>
+                        <th className="p-2 border-r border-slate-200 bg-emerald-50 text-emerald-900">Selling Price (NGN) *</th>
+                        <th className="p-2 border-r border-slate-200">Cost Price (NGN)</th>
+                        <th className="p-2 border-r border-slate-200">Current Stock Quantity</th>
+                        <th className="p-2 border-r border-slate-200">Expiry Month</th>
+                        <th className="p-2 border-r border-slate-200">Expiry Year</th>
+                        <th className="p-2">Prescription Only (POM)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-mono text-slate-600 bg-white whitespace-nowrap">
+                      <tr className="hover:bg-slate-50/80">
+                        <td className="p-2 font-bold text-slate-900 border-r border-slate-100">Amoxil 500mg</td>
+                        <td className="p-2 border-r border-slate-100">Amoxicillin Trihydrate</td>
+                        <td className="p-2 border-r border-slate-100">Antibiotics</td>
+                        <td className="p-2 border-r border-slate-100">Capsule</td>
+                        <td className="p-2 font-bold text-emerald-700 border-r border-slate-100">2500</td>
+                        <td className="p-2 border-r border-slate-100">1800</td>
+                        <td className="p-2 border-r border-slate-100 font-bold text-slate-800">120</td>
+                        <td className="p-2 border-r border-slate-100">11</td>
+                        <td className="p-2 border-r border-slate-100">2027</td>
+                        <td className="p-2">Yes</td>
+                      </tr>
+                      <tr className="hover:bg-slate-50/80">
+                        <td className="p-2 font-bold text-slate-900 border-r border-slate-100">Emzor Paracetamol 500mg</td>
+                        <td className="p-2 border-r border-slate-100">Paracetamol</td>
+                        <td className="p-2 border-r border-slate-100">Analgesics & Pain</td>
+                        <td className="p-2 border-r border-slate-100">Tablet</td>
+                        <td className="p-2 font-bold text-emerald-700 border-r border-slate-100">800</td>
+                        <td className="p-2 border-r border-slate-100">500</td>
+                        <td className="p-2 border-r border-slate-100 font-bold text-slate-800">250</td>
+                        <td className="p-2 border-r border-slate-100">8</td>
+                        <td className="p-2 border-r border-slate-100">2028</td>
+                        <td className="p-2">No</td>
+                      </tr>
+                      <tr className="hover:bg-slate-50/80">
+                        <td className="p-2 font-bold text-slate-900 border-r border-slate-100">Coartem 80/480mg</td>
+                        <td className="p-2 border-r border-slate-100">Artemether / Lumefantrine</td>
+                        <td className="p-2 border-r border-slate-100">Antimalarial</td>
+                        <td className="p-2 border-r border-slate-100">Tablet</td>
+                        <td className="p-2 font-bold text-emerald-700 border-r border-slate-100">3200</td>
+                        <td className="p-2 border-r border-slate-100">2400</td>
+                        <td className="p-2 border-r border-slate-100 font-bold text-slate-800">75</td>
+                        <td className="p-2 border-r border-slate-100">10</td>
+                        <td className="p-2 border-r border-slate-100">2027</td>
+                        <td className="p-2">No</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Upload Dropzone & File Input */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2 flex items-center gap-1.5">
+                  <Upload className="w-3.5 h-3.5 text-emerald-600" />
+                  Select or Drop Your Excel / CSV File
+                </h4>
+
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDraggingBulk(true);
+                  }}
+                  onDragLeave={() => setIsDraggingBulk(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDraggingBulk(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) handleProcessFile(file);
+                  }}
+                  onClick={() => modalFileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
+                    isDraggingBulk
+                      ? "border-emerald-500 bg-emerald-50/60"
+                      : "border-slate-300 hover:border-emerald-500 hover:bg-slate-50/60 bg-white"
+                  }`}
+                >
+                  <input
+                    type="file"
+                    ref={modalFileInputRef}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleProcessFile(file);
+                    }}
+                    accept=".xlsx, .xls, .csv"
+                    className="hidden"
+                  />
+
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-[#0a4738] flex items-center justify-center shadow-xs">
+                      <Upload className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-800">
+                        {bulkFile ? bulkFile.name : "Click to browse or drag & drop your spreadsheet"}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Supports Microsoft Excel (.xlsx, .xls) and CSV (.csv) files
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Error Message Display */}
+              {bulkError && (
+                <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-start gap-2.5 animate-in fade-in duration-200">
+                  <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">Upload Error:</span> {bulkError}
+                  </div>
+                </div>
+              )}
+
+              {/* Parsed Verification Preview */}
+              {parsedBulkProducts.length > 0 && (
+                <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200 space-y-3 animate-in slide-in-from-bottom-2 duration-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                      <span className="text-sm font-bold text-emerald-950">
+                        Spreadsheet Verified: {parsedBulkProducts.length} Product{parsedBulkProducts.length === 1 ? "" : "s"} Ready to Import
+                      </span>
+                    </div>
+                    <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-lg border border-emerald-300">
+                      Valid Structure
+                    </span>
+                  </div>
+
+                  {/* Quick table preview of top 4 parsed items */}
+                  <div className="max-h-40 overflow-y-auto border border-emerald-200 rounded-xl bg-white">
+                    <table className="min-w-full text-xs text-left">
+                      <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-100">
+                        <tr>
+                          <th className="p-2">Name</th>
+                          <th className="p-2">Molecule</th>
+                          <th className="p-2">Category</th>
+                          <th className="p-2">Stock</th>
+                          <th className="p-2">Price</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {parsedBulkProducts.slice(0, 5).map((p, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50">
+                            <td className="p-2 font-bold text-slate-800">{p.name}</td>
+                            <td className="p-2 text-slate-500">{p.api_molecule}</td>
+                            <td className="p-2 text-slate-500">{p.category}</td>
+                            <td className="p-2 font-mono font-bold text-emerald-700">{p.quantity}</td>
+                            <td className="p-2 font-mono font-bold text-slate-900">₦{p.price.toLocaleString("en-NG")}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {parsedBulkProducts.length > 5 && (
+                    <p className="text-[11px] text-emerald-700 italic">
+                      + and {parsedBulkProducts.length - 5} more products will be indexed into active stock.
+                    </p>
+                  )}
+                </div>
+              )}
+
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="flex flex-col-reverse sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-100 shrink-0">
+              <button
+                type="button"
+                onClick={handleCloseBulkModal}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold text-sm cursor-pointer text-center"
+              >
+                Cancel
+              </button>
+
+              <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={handleConfirmBulkUpload}
+                  disabled={parsedBulkProducts.length === 0}
+                  className={`w-full sm:w-auto px-6 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer ${
+                    parsedBulkProducts.length > 0
+                      ? "bg-[#0a4738] hover:bg-[#145a49] text-white"
+                      : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                  }`}
+                >
+                  <Upload className="w-4 h-4" />
+                  Import {parsedBulkProducts.length > 0 ? `${parsedBulkProducts.length} Products` : "Products"}
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
       )}

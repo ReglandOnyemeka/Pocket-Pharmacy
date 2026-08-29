@@ -7,7 +7,8 @@ import {
   Sparkles,
   ArrowRight,
   ShieldCheck,
-  Calendar
+  Calendar,
+  MessageCircle
 } from "lucide-react";
 import { Product } from "../types";
 
@@ -126,11 +127,22 @@ export const PharmacyAlerts: React.FC<PharmacyAlertsProps> = ({
 
                     <button
                       onClick={() => onRequestAiConsult(p)}
-                      className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-all"
+                      className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
                     >
-                      <Sparkles className="w-4 h-4 text-emerald-600" />
-                      Find Equivalents
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                      Equivalents
                     </button>
+
+                    <a
+                      href={`https://wa.me/?text=${encodeURIComponent(`Hello, I would like to place an urgent restock reorder for: *${p.name}* (Molecule: ${p.api_molecule}). Current shelf stock is low (${p.quantity} units remaining). Please confirm availability and wholesale carton price.`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-xl bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#075E54] border border-[#25D366]/30 text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
+                      title="Draft WhatsApp Restock Message to Distributor"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      Restock via WA
+                    </a>
                   </div>
                 </div>
               ))

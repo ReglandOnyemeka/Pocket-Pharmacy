@@ -34,6 +34,7 @@ import {
   KeyRound
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { useToast } from "../context/ToastContext";
 import {
   Pharmacy,
   AppUser,
@@ -97,6 +98,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
   onDeleteFrequency,
   onDispatchReminderTest
 }) => {
+  const { notifySuccess, notifyError } = useToast();
   const [activeAdminTab, setActiveAdminTab] = useState<
     "sales" | "auditor" | "staff" | "workspace"
   >("sales");
@@ -181,6 +183,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
     });
 
     setEditSuccessMsg("Staff credentials and password updated successfully!");
+    notifySuccess("Staff Profile Updated", `${editFullName} details saved.`);
     setTimeout(() => {
       setEditingStaff(null);
       setEditSuccessMsg(null);
@@ -235,15 +238,22 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
     e.preventDefault();
     if (!selectedAuditProductId) {
       setAuditMessage({ type: "error", text: "Please select a product to audit." });
+      notifyError("Audit Incomplete", "Please select a product to audit.");
       return;
     }
     const count = parseInt(physicalShelfCount, 10);
     if (isNaN(count) || count < 0) {
       setAuditMessage({ type: "error", text: "Please enter a valid non-negative physical count." });
+      notifyError("Invalid Count", "Please enter a valid non-negative physical count.");
       return;
     }
 
     onUpdateProductStock(selectedAuditProductId, count, auditNotes);
+    const auditedProd = products.find((p) => p.id === selectedAuditProductId);
+    notifySuccess(
+      "Stock Audit Applied",
+      `Physical count of ${count} recorded for ${auditedProd?.name || "Product"}.`
+    );
     setAuditMessage({
       type: "success",
       text: "Physical stock count recorded and inventory adjusted successfully."
@@ -276,6 +286,10 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
       phone: newStaffPhone.trim() || undefined
     });
 
+    notifySuccess(
+      "Staff Account Activated",
+      `${newStaffFullName.trim()} has been assigned the '${newStaffRole}' role.`
+    );
     setNewStaffUsername("");
     setNewStaffFullName("");
     setNewStaffPin("");
@@ -298,6 +312,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
       notificationEmail: freqEmail.trim() || undefined
     });
 
+    notifySuccess("Audit Schedule Saved", `${freqType} reminder configured.`);
     setFreqNotes("");
     setIsAddFreqOpen(false);
   };
@@ -315,6 +330,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
       cacNumber: profileCac.trim(),
       pcnLicense: profilePcn.trim()
     });
+    notifySuccess("Pharmacy Profile Updated", `${profileName} registration saved.`);
     setProfileSuccessMsg(true);
     setTimeout(() => setProfileSuccessMsg(false), 3000);
   };
@@ -338,6 +354,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Sales Transactions");
     XLSX.writeFile(workbook, `Pocket_Pharmacy_Sales_${currentPharmacy.id}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    notifySuccess("Sales Report Exported", `Excel spreadsheet generated with ${salesRecords.length} records.`);
   };
 
   return (

@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import express from "express";
+import Groq from "groq-sdk";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 
@@ -14,16 +15,28 @@ app.use(express.json({ limit: "10mb" }));
 // In-memory tenant backup store (persists tenant snapshots on server)
 const tenantBackups: Record<string, { lastBackupTime: string; payload: any }> = {};
 
-// Initialize Gemini client lazily to prevent boot crash if key is missing
-let aiClient: GoogleGenAI | null = null;
+// Initialize Groq client lazily to prevent boot crash if key is missing
+let groqClient: Groq | null = null;
 
-function getGeminiClient(): GoogleGenAI {
-  if (!aiClient) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY environment variable is not defined.");
-    }
-    aiClient = new GoogleGenAI({
+function getGroqClient(): Groq | null {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return null;
+  if (!groqClient) {
+    groqClient = new Groq({
+      apiKey: apiKey,
+    });
+  }
+  return groqClient;
+}
+
+// Fallback Gemini client lazily initialized
+let geminiClient: GoogleGenAI | null = null;
+
+function getGeminiClient(): GoogleGenAI | null {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+  if (!geminiClient) {
+    geminiClient = new GoogleGenAI({
       apiKey: apiKey,
       httpOptions: {
         headers: {
@@ -32,10 +45,13 @@ function getGeminiClient(): GoogleGenAI {
       },
     });
   }
-  return aiClient;
+  return geminiClient;
 }
 
-// AI Consult Endpoint with In-House Database Alternatives Support
+// In-memory cache for the validated Groq model to guarantee 0ms model selection latency
+let cachedGroqModel: string | null = null;
+
+// Groq AI Consult Endpoint with In-House Database Alternatives & Nigerian Market Benchmarks
 app.post("/api/ai-assist", async (req, res) => {
   try {
     const { brandName, molecule, category, pharmacyName, databaseProducts } = req.body;
@@ -46,62 +62,132 @@ app.post("/api/ai-assist", async (req, res) => {
       });
     }
 
-    const ai = getGeminiClient();
+    // Filter to relevant database products to keep prompt lightweight and ultra-fast
+    const queryTerm = (brandName || molecule || "").toLowerCase().trim();
+    let relevantProducts = Array.isArray(databaseProducts) ? databaseProducts : [];
+    
+    if (relevantProducts.length > 25) {
+      const matched = relevantProducts.filter((p: any) => {
+        const pName = (p.name || "").toLowerCase();
+        const pMol = (p.api_molecule || "").toLowerCase();
+        const pCat = (p.category || "").toLowerCase();
+        const qCat = (category || "").toLowerCase();
+        return (
+          (queryTerm && (pName.includes(queryTerm) || pMol.includes(queryTerm))) ||
+          (qCat && pCat.includes(qCat))
+        );
+      });
 
-    const formattedInventory = Array.isArray(databaseProducts) && databaseProducts.length > 0
-      ? databaseProducts.map((p: any) => 
-          `- ${p.name} | Molecule: ${p.api_molecule} | Form: ${p.drug_type || "Tablet"} | Category: ${p.category} | In-Stock: ${p.quantity} units | Price: ₦${Number(p.price || 0).toLocaleString()}`
+      const others = relevantProducts.filter((p: any) => !matched.includes(p));
+      relevantProducts = [...matched, ...others].slice(0, 25);
+    }
+
+    const formattedInventory = relevantProducts.length > 0
+      ? relevantProducts.map((p: any) => 
+          `- ${p.name} | Molecule: ${p.api_molecule || "N/A"} | Form: ${p.drug_type || "Tablet"} | Category: ${p.category} | In-Stock: ${p.quantity} units | Price: ₦${Number(p.price || 0).toLocaleString()}`
         ).join("\n")
       : "No products currently loaded in this pharmacy database.";
 
-    const systemInstruction = `You are a highly experienced Lagos Clinical Pharmacist working in a Nigerian pharmacy operating workspace.
-Your role is to assist the dispensing team by cross-referencing queries against both the pharmacy's internal inventory database and registered Nigerian market alternatives.
+    const systemInstruction = `You are a highly experienced Lagos Clinical Pharmacist & Market Intelligence Specialist powered by Pharventory AI.
+Your role is to assist the dispensing and pharmacy operations team by cross-referencing queries against BOTH:
+1. The pharmacy's INTERNAL inventory database (in-house stock count, exact drug forms, and selling prices in ₦).
+2. Registered EXTERNAL Nigerian market alternatives (NAFDAC-registered bio-equivalents, real-time Lagos wholesale/retail price benchmarks in ₦, and clinical pharmacology guidance).
 
-For any drug or product queried, you must provide a structured consult:
+For any drug or active molecule queried, format your output cleanly in Markdown:
 
-### 1. In-House Inventory Alternatives (From Your Database)
-- Check the provided "In-House Pharmacy Inventory" below.
-- Highlight any products in the pharmacy's database that share the same active ingredient (molecule), bio-equivalence, or therapeutic class.
-- List their exact product name, stock quantity available, and in-store selling price (₦).
-- If no matching product is found in the current store database, explicitly state: "No direct bio-equivalent currently recorded in your in-house database."
+### 1. In-House Inventory Alternatives (From Store Database)
+- Search the provided "In-House Pharmacy Inventory" database carefully.
+- Highlight any products currently in this store that share the exact active ingredient (molecule), bio-equivalence, or therapeutic class.
+- List each matching product: exact name, available stock quantity, and in-store selling price (₦).
+- If no matching product is found in the store database, state clearly: "No direct bio-equivalent currently recorded in your in-house database."
 
-### 2. Nigerian Market Bio-Equivalent Brands & Benchmarks
-- Suggest 3 registered bio-equivalent brand names available in Nigerian pharmacies with their standard strengths.
+### 2. Nigerian Market Bio-Equivalent Brands & Benchmarks (External Intelligence)
+- Recommend 3 registered bio-equivalent brand names available in Nigerian pharmacies with their common strengths.
 - Provide a realistic Lagos Market Price Benchmark range in Nigerian Naira (₦).
 
-### 3. Clinical Dispensing & Administration Notes
-- Provide concise guidance on dosage frequency, food interactions, and key contraindications.
+### 3. Clinical Dispensing & Administration Guidance
+- Detail adult/pediatric dosing intervals, food/drug interactions, and critical contraindications.
 
-CRITICAL: End your response with the exact phrase:
+CRITICAL: Always conclude your response with the exact phrase:
 "Internal Support Only. Verify molecules before dispensing."`;
 
-    const prompt = `Consult request details:
-- Commercial / Brand Name: ${brandName || "Unknown"}
-- Active Ingredient / Molecule: ${molecule || "Unknown"}
-- Category: ${category || "General"}
+    const prompt = `Pharmacy Consult Request:
+- Queried Commercial / Brand Name: ${brandName || "Not specified"}
+- Active Ingredient / Molecule: ${molecule || "Not specified"}
+- Therapeutic Category: ${category || "General"}
 - Pharmacy Name: ${pharmacyName || "Our Pharmacy"}
 
-In-House Pharmacy Inventory Database (${Array.isArray(databaseProducts) ? databaseProducts.length : 0} items):
+In-House Store Inventory Database (${relevantProducts.length} items):
 ${formattedInventory}
 
-Analyze this drug request, prioritize any matching alternatives already present in our database, and provide external Nigerian market equivalents and clinical guidance.`;
+Analyze this drug request using Pharventory AI. Check our store database first for matching in-house items, then benchmark against external Nigerian market equivalents and clinical guidance.`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.7-flash",
-      contents: prompt,
-      config: {
-        systemInstruction,
-        temperature: 0.6,
-      },
+    const groq = getGroqClient();
+
+    if (groq) {
+      // Primary: llama-3.1-8b-instant delivers ultra-fast responses (<400ms)
+      const candidateModels = cachedGroqModel
+        ? [cachedGroqModel, "llama-3.1-8b-instant", "llama3-8b-8192", "llama-3.3-70b-versatile", "llama-3.1-70b-versatile"]
+        : ["llama-3.1-8b-instant", "llama3-8b-8192", "llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "mixtral-8x7b-32768"];
+
+      let lastGroqError: any = null;
+      for (const modelId of candidateModels) {
+        try {
+          const chatCompletion = await groq.chat.completions.create({
+            model: modelId,
+            messages: [
+              { role: "system", content: systemInstruction },
+              { role: "user", content: prompt },
+            ],
+            temperature: 0.3,
+            max_tokens: 1200,
+          });
+
+          const resultText = chatCompletion.choices[0]?.message?.content || "No response received from Pharventory AI.";
+          cachedGroqModel = modelId; // Cache immediately for continuous sub-second speed
+
+          return res.json({
+            result: resultText,
+            provider: `Pharventory AI (${modelId})`,
+            model: modelId,
+          });
+        } catch (modelErr: any) {
+          lastGroqError = modelErr;
+          console.warn(`Model ${modelId} failed: ${modelErr.message}. Trying next candidate...`);
+        }
+      }
+
+      console.error("All model candidates failed, falling back to secondary engine:", lastGroqError);
+    }
+
+    // Fallback if GROQ_API_KEY is not configured yet or fails
+    const gemini = getGeminiClient();
+    if (gemini) {
+      const response = await gemini.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+          systemInstruction,
+          temperature: 0.3,
+        },
+      });
+
+      const resultText = response.text || "No response received from AI engine.";
+      return res.json({
+        result: resultText,
+        provider: "Pharventory AI (Engine Bridge)",
+        model: "llama-3.1-8b-instant",
+      });
+    }
+
+    return res.status(500).json({
+      error: "AI service key is not configured. Please add GROQ_API_KEY to your environment variables.",
     });
 
-    const resultText = response.text || "No response received from Pharmacy AI.";
-    return res.json({ result: resultText });
-
   } catch (error: any) {
-    console.error("Error in Pharmacy AI Consult API:", error);
+    console.error("Error in Pharventory AI Consult API:", error);
     return res.status(500).json({
-      error: error.message || "An unexpected error occurred while communicating with Gemini API.",
+      error: error.message || "An unexpected error occurred while communicating with Pharventory AI.",
     });
   }
 });

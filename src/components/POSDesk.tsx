@@ -16,7 +16,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Layers,
-  ArrowUpDown
+  ArrowUpDown,
+  Heart,
+  Smile,
+  Send
 } from "lucide-react";
 import { Product, CartItem, SaleRecord } from "../types";
 import { DRUG_CATEGORIES } from "../data/initialData";
@@ -434,8 +437,8 @@ export const POSDesk: React.FC<POSDeskProps> = ({
       </div>
 
       {/* Cart & Checkout Column */}
-      <div className="lg:col-span-5 space-y-4">
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-5">
+      <div id="pos-cart-panel" className="lg:col-span-5 space-y-4">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5 space-y-5">
           
           {/* Cart Header */}
           <div className="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -523,33 +526,94 @@ export const POSDesk: React.FC<POSDeskProps> = ({
             </span>
           </div>
 
-          {/* Customer info (Optional) */}
-          <div className="grid grid-cols-2 gap-2.5">
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
-                Customer Name (Optional)
-              </label>
-              <input
-                type="text"
-                placeholder="Walk-in Client"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-              />
+          {/* Customer info & Patient Care Profile */}
+          <div className="bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200 space-y-2.5">
+            <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+              <span className="flex items-center gap-1.5 text-[#0a4738]">
+                <Heart className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
+                Patient & Caregiver Care Info
+              </span>
+              <span className="text-[10px] text-slate-400 font-normal">Optional</span>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
-                Phone for SMS Receipt
-              </label>
-              <input
-                type="tel"
-                placeholder="+234..."
-                value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
-                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-              />
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
+                  Patient / Client Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Mrs. Adeyemi"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#0a4738]"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
+                  WhatsApp / Phone
+                </label>
+                <input
+                  type="tel"
+                  placeholder="080... (for digital receipt)"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#0a4738]"
+                />
+              </div>
             </div>
           </div>
+
+          {/* Quick Dispense Cash Presets */}
+          {cart.length > 0 && (
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
+                Quick Tender Presets
+              </span>
+              <div className="grid grid-cols-4 gap-1.5">
+                <button
+                  type="button"
+                  onClick={setExactCash}
+                  className="px-2 py-1.5 rounded-lg bg-emerald-100/70 hover:bg-emerald-200 text-[#0a4738] text-xs font-bold transition-colors cursor-pointer text-center"
+                >
+                  Exact Cash
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextThousand = Math.ceil(cartTotal / 1000) * 1000;
+                    setCashAmount(nextThousand.toString());
+                    setTransferAmount("");
+                    setCardAmount("");
+                    setPaymentError(null);
+                  }}
+                  className="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors cursor-pointer text-center"
+                >
+                  ₦{(Math.ceil(cartTotal / 1000) * 1000).toLocaleString()}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextFive = Math.ceil(cartTotal / 5000) * 5000;
+                    setCashAmount(nextFive.toString());
+                    setTransferAmount("");
+                    setCardAmount("");
+                    setPaymentError(null);
+                  }}
+                  className="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors cursor-pointer text-center"
+                >
+                  ₦{(Math.ceil(cartTotal / 5000) * 5000 || 5000).toLocaleString()}
+                </button>
+                <button
+                  type="button"
+                  onClick={setExactTransfer}
+                  className="px-2 py-1.5 rounded-lg bg-cyan-100/70 hover:bg-cyan-200 text-cyan-900 text-xs font-bold transition-colors cursor-pointer text-center"
+                >
+                  Transfer
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Payment breakdown */}
           <div className="space-y-2.5 pt-2 border-t border-slate-100">
@@ -561,23 +625,23 @@ export const POSDesk: React.FC<POSDeskProps> = ({
                 <button
                   type="button"
                   onClick={setExactCash}
-                  className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium"
+                  className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
                 >
-                  All Cash
+                  Cash
                 </button>
                 <button
                   type="button"
                   onClick={setExactTransfer}
-                  className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium"
+                  className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
                 >
-                  All Transfer
+                  Transfer
                 </button>
                 <button
                   type="button"
                   onClick={setExactCard}
-                  className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium"
+                  className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium cursor-pointer"
                 >
-                  All POS Card
+                  POS Card
                 </button>
               </div>
             </div>
@@ -665,7 +729,7 @@ export const POSDesk: React.FC<POSDeskProps> = ({
           <button
             onClick={handleCheckout}
             disabled={cart.length === 0}
-            className={`w-full py-3 rounded-xl font-bold text-sm sm:text-base flex items-center justify-center gap-2 transition-all ${
+            className={`w-full py-3.5 rounded-xl font-bold text-sm sm:text-base flex items-center justify-center gap-2 transition-all cursor-pointer ${
               cart.length === 0
                 ? "bg-slate-200 text-slate-400 cursor-not-allowed"
                 : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg active:scale-[0.99]"
@@ -676,6 +740,40 @@ export const POSDesk: React.FC<POSDeskProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Floating Mobile Cart & Checkout Bar */}
+      {cart.length > 0 && (
+        <div className="lg:hidden fixed bottom-4 left-3 right-3 z-30 animate-in slide-in-from-bottom-2 duration-200">
+          <button
+            type="button"
+            onClick={() => {
+              const cartElem = document.getElementById("pos-cart-panel");
+              if (cartElem) {
+                cartElem.scrollIntoView({ behavior: "smooth", block: "start" });
+              }
+            }}
+            className="w-full bg-[#0a4738] hover:bg-[#063327] text-white p-3 rounded-2xl shadow-2xl border border-[#3be8b0]/40 flex items-center justify-between font-bold active:scale-[0.98] transition-all cursor-pointer"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-[#3be8b0] text-[#0a4738] flex items-center justify-center font-black text-xs shadow-xs">
+                {cart.reduce((s, i) => s + i.quantity, 0)}
+              </div>
+              <div className="text-left">
+                <span className="text-[10px] text-emerald-200/80 uppercase font-semibold block leading-none">
+                  Cart Total ({cart.length} SKU{cart.length === 1 ? "" : "s"})
+                </span>
+                <span className="text-base text-white font-mono leading-tight font-black">
+                  ₦{cartTotal.toLocaleString("en-NG")}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 bg-[#145a49] hover:bg-[#1b6b57] px-3.5 py-2 rounded-xl text-[#3be8b0] text-xs font-bold border border-[#227a64] shadow-xs">
+              <span>Checkout</span>
+              <ArrowRight className="w-4 h-4" />
+            </div>
+          </button>
+        </div>
+      )}
     </div>
   );
 };
