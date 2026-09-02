@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import dotenv from "dotenv";
 import express from "express";
 import Groq from "groq-sdk";
@@ -15,21 +15,7 @@ app.use(express.json({ limit: "10mb" }));
 // In-memory tenant backup store (persists tenant snapshots on server)
 const tenantBackups: Record<string, { lastBackupTime: string; payload: any }> = {};
 
-// Initialize Groq client lazily to prevent boot crash if key is missing
-let groqClient: Groq | null = null;
-
-function getGroqClient(): Groq | null {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) return null;
-  if (!groqClient) {
-    groqClient = new Groq({
-      apiKey: apiKey,
-    });
-  }
-  return groqClient;
-}
-
-// Fallback Gemini client lazily initialized
+// Gemini client lazily initialized
 let geminiClient: GoogleGenAI | null = null;
 
 function getGeminiClient(): GoogleGenAI | null {
@@ -48,11 +34,24 @@ function getGeminiClient(): GoogleGenAI | null {
   return geminiClient;
 }
 
-// In-memory cache for the validated Groq model to guarantee 0ms model selection latency
-let cachedGroqModel: string | null = null;
+// Groq client initialized as secondary fallback
+let groqClient: Groq | null = null;
 
-// Groq AI Consult Endpoint with In-House Database Alternatives & Nigerian Market Benchmarks
+function getGroqClient(): Groq | null {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return null;
+  if (!groqClient) {
+    groqClient = new Groq({
+      apiKey: apiKey,
+    });
+  }
+  return groqClient;
+}
+
+// Pharventory AI Consult Endpoint with In-House Database Alternatives & Nigerian Market Benchmarks
 app.post("/api/ai-assist", async (req, res) => {
+  res.setHeader("Content-Type", "application/json");
+
   try {
     const { brandName, molecule, category, pharmacyName, databaseProducts } = req.body;
 
@@ -122,66 +121,60 @@ ${formattedInventory}
 
 Analyze this drug request using Pharventory AI. Check our store database first for matching in-house items, then benchmark against external Nigerian market equivalents and clinical guidance.`;
 
-    const groq = getGroqClient();
-
-    if (groq) {
-      // Primary: llama-3.1-8b-instant delivers ultra-fast responses (<400ms)
-      const candidateModels = cachedGroqModel
-        ? [cachedGroqModel, "llama-3.1-8b-instant", "llama3-8b-8192", "llama-3.3-70b-versatile", "llama-3.1-70b-versatile"]
-        : ["llama-3.1-8b-instant", "llama3-8b-8192", "llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "mixtral-8x7b-32768"];
-
-      let lastGroqError: any = null;
+    // 1. Primary Engine: Ultra-fast Gemini models with fallback
+    const gemini = getGeminiClient();
+    if (gemini) {
+      const candidateModels = ["gemini-3.7-flash", "gemini-2.5-flash", "gemini-2.0-flash"];
       for (const modelId of candidateModels) {
         try {
-          const chatCompletion = await groq.chat.completions.create({
+          const response = await gemini.models.generateContent({
             model: modelId,
-            messages: [
-              { role: "system", content: systemInstruction },
-              { role: "user", content: prompt },
-            ],
-            temperature: 0.3,
-            max_tokens: 1200,
+            contents: prompt,
+            config: {
+              systemInstruction,
+              temperature: 0.2,
+            },
           });
 
-          const resultText = chatCompletion.choices[0]?.message?.content || "No response received from Pharventory AI.";
-          cachedGroqModel = modelId; // Cache immediately for continuous sub-second speed
-
+          const resultText = response.text || "No response received from AI engine.";
           return res.json({
             result: resultText,
             provider: `Pharventory AI (${modelId})`,
             model: modelId,
           });
-        } catch (modelErr: any) {
-          lastGroqError = modelErr;
-          console.warn(`Model ${modelId} failed: ${modelErr.message}. Trying next candidate...`);
+        } catch (geminiErr: any) {
+          console.warn(`[Gemini model ${modelId} attempt failed]`, geminiErr?.message || geminiErr);
         }
       }
-
-      console.error("All model candidates failed, falling back to secondary engine:", lastGroqError);
     }
 
-    // Fallback if GROQ_API_KEY is not configured yet or fails
-    const gemini = getGeminiClient();
-    if (gemini) {
-      const response = await gemini.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: {
-          systemInstruction,
+    // 2. Secondary Engine: Groq Fallback if configured
+    const groq = getGroqClient();
+    if (groq) {
+      try {
+        const chatCompletion = await groq.chat.completions.create({
+          model: "llama-3.1-8b-instant",
+          messages: [
+            { role: "system", content: systemInstruction },
+            { role: "user", content: prompt },
+          ],
           temperature: 0.3,
-        },
-      });
+          max_tokens: 1200,
+        });
 
-      const resultText = response.text || "No response received from AI engine.";
-      return res.json({
-        result: resultText,
-        provider: "Pharventory AI (Engine Bridge)",
-        model: "llama-3.1-8b-instant",
-      });
+        const resultText = chatCompletion.choices[0]?.message?.content || "No response received from Pharventory AI.";
+        return res.json({
+          result: resultText,
+          provider: "Pharventory AI (Llama 3.1 Instant)",
+          model: "llama-3.1-8b-instant",
+        });
+      } catch (groqErr: any) {
+        console.warn("[Groq Fallback error]", groqErr?.message || groqErr);
+      }
     }
 
     return res.status(500).json({
-      error: "AI service key is not configured. Please add GROQ_API_KEY to your environment variables.",
+      error: "AI engine could not generate a response. Please check your network connection or try again.",
     });
 
   } catch (error: any) {

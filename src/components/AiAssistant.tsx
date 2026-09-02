@@ -111,12 +111,26 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
         })
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get("content-type") || "";
+      let data: any = null;
+
+      if (contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const textResp = await res.text();
+        console.warn("[Pharventory AI] Received non-JSON response from server:", textResp);
+        if (res.status === 404 || res.status === 502 || res.status === 503) {
+          throw new Error(`The backend server is momentarily starting up (HTTP ${res.status}). Please retry your consult in a few seconds.`);
+        } else {
+          throw new Error(`Server returned unexpected response (${res.status}). Please try again.`);
+        }
+      }
+
       const elapsed = Math.round(performance.now() - startTime);
       setExecutionTimeMs(elapsed);
 
       if (!res.ok) {
-        throw new Error(data.error || "Failed to generate AI clinical consult.");
+        throw new Error(data?.error || "Failed to generate AI clinical consult.");
       }
 
       setAiResponse(data.result);
@@ -372,7 +386,38 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
       )}
 
       {/* ================= PHARVENTORY AI CLINICAL & MARKET BENCHMARK RESPONSE ================= */}
-      {aiResponse && (
+      {loading && (
+        <div className="p-6 rounded-2xl bg-slate-900 text-slate-100 border border-slate-800 shadow-xl space-y-4 animate-pulse">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-amber-400/20 text-amber-400 flex items-center justify-center">
+                <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+              </div>
+              <div>
+                <span className="font-bold text-sm text-white block">
+                  Analyzing Molecule & Inventory Equivalents...
+                </span>
+                <span className="text-xs text-slate-400 font-mono">
+                  Synthesizing clinical pharmacology & Nigerian market benchmarks
+                </span>
+              </div>
+            </div>
+            <span className="text-xs px-2.5 py-1 rounded bg-slate-800 text-amber-300 border border-slate-700 font-semibold flex items-center gap-1 font-mono">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+              Gemini 3.7 Flash Engine
+            </span>
+          </div>
+
+          <div className="space-y-3 pt-2">
+            <div className="h-4 bg-slate-800 rounded w-3/4"></div>
+            <div className="h-4 bg-slate-800 rounded w-5/6"></div>
+            <div className="h-4 bg-slate-800 rounded w-2/3"></div>
+            <div className="h-4 bg-slate-800 rounded w-4/5"></div>
+          </div>
+        </div>
+      )}
+
+      {!loading && aiResponse && (
         <div className="p-6 rounded-2xl bg-slate-900 text-slate-100 border border-slate-800 shadow-xl space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
             <div className="flex items-center gap-2.5">
