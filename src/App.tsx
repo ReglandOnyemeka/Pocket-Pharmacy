@@ -41,7 +41,6 @@ import { AiAssistant } from "./components/AiAssistant";
 import { SuperAdminDashboard } from "./components/SuperAdminDashboard";
 import { AuthModal } from "./components/AuthModal";
 import { ReceiptModal } from "./components/ReceiptModal";
-import { LandingPage } from "./components/LandingPage";
 import { ToastProvider, useToast } from "./context/ToastContext";
 import { ToastContainer } from "./components/ToastContainer";
 
@@ -56,9 +55,8 @@ function AppContent() {
   const [currentPharmacy, setCurrentPharmacy] = useState<Pharmacy | null>(null);
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
 
-  // Active View Tab & Landing Page State (Landing page is the entry point)
+  // Active View Tab State
   const [activeTab, setActiveTab] = useState<"pos" | "inventory" | "alerts" | "ai_consult" | "admin">("pos");
-  const [isViewingLanding, setIsViewingLanding] = useState<boolean>(true);
 
   // Isolated Tenant Database States
   const [products, setProducts] = useState<Product[]>([]);
@@ -183,7 +181,6 @@ function AppContent() {
     localStorage.setItem("pocket_active_user", JSON.stringify(user));
     localStorage.setItem("pocket_active_pharmacy", JSON.stringify(pharmacy));
     loadTenantData(pharmacy.id);
-    setIsViewingLanding(false);
     setIsAuthModalOpen(false);
     setActiveTab(user.role === "cashier" ? "pos" : "pos");
     notifySuccess("Welcome Back", `Signed in to ${pharmacy.name} as ${user.fullName}.`);
@@ -487,40 +484,6 @@ function AppContent() {
     return currentRole === "admin" || currentRole === "super_admin";
   }, [currentRole]);
 
-  if (isViewingLanding) {
-    return (
-      <>
-        <LandingPage
-          onGetStarted={() => {
-            setIsViewingLanding(false);
-            setIsAuthModalOpen(true);
-          }}
-          onLogin={() => {
-            setIsViewingLanding(false);
-            setIsAuthModalOpen(true);
-          }}
-          onViewWorkspace={() => setIsViewingLanding(false)}
-        />
-
-        <AuthModal
-          isOpen={isAuthModalOpen}
-          onClose={() => setIsAuthModalOpen(false)}
-          pharmacies={pharmacies}
-          users={users}
-          onLogin={(user, pharm) => {
-            handleLogin(user, pharm);
-            setIsViewingLanding(false);
-          }}
-          onRegisterTenant={(params) => {
-            handleRegisterTenant(params);
-            setIsViewingLanding(false);
-          }}
-          onOpenLanding={() => setIsViewingLanding(true)}
-        />
-      </>
-    );
-  }
-
   if (!currentPharmacy || !currentUser) {
     return (
       <AuthModal
@@ -532,7 +495,6 @@ function AppContent() {
         users={users}
         onLogin={handleLogin}
         onRegisterTenant={handleRegisterTenant}
-        onOpenLanding={() => setIsViewingLanding(true)}
       />
     );
   }
