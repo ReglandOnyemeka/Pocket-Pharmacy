@@ -219,7 +219,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Close dialog"
-            className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 p-1.5 text-emerald-200/80 hover:text-white rounded-lg hover:bg-white/10 transition-all cursor-pointer z-10"
+            className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 p-1.5 text-emerald-300 hover:text-white rounded-lg hover:bg-emerald-800 transition-all cursor-pointer z-10"
           >
             <X className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
@@ -235,14 +235,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       <div className="p-4 sm:p-5 overflow-y-auto space-y-3.5 sm:space-y-4">
         {/* Tab Switcher */}
         {tab !== "reset" ? (
-          <div className="grid grid-cols-2 gap-1.5 bg-[#f1f5f9] p-1 rounded-xl sm:rounded-2xl border border-slate-200/80">
+          <div className="grid grid-cols-2 gap-1.5 bg-[#f1f5f9] p-1 rounded-xl sm:rounded-2xl border border-slate-200">
             <button
               type="button"
               onClick={() => setTab("login")}
               className={`py-1.5 sm:py-2 rounded-lg sm:rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 tab === "login"
                   ? "bg-[#0a4738] text-white shadow-sm"
-                  : "text-slate-600 hover:text-[#0a4738] hover:bg-white/60"
+                  : "text-slate-600 hover:text-[#0a4738] hover:bg-white"
               }`}
             >
               <LogIn className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -255,7 +255,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               className={`py-1.5 sm:py-2 rounded-lg sm:rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 tab === "register"
                   ? "bg-[#0a4738] text-white shadow-sm"
-                  : "text-slate-600 hover:text-[#0a4738] hover:bg-white/60"
+                  : "text-slate-600 hover:text-[#0a4738] hover:bg-white"
               }`}
             >
               <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />

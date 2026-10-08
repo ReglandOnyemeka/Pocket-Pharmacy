@@ -31,7 +31,7 @@ export const ToastContainer: React.FC = () => {
           <button
             type="button"
             onClick={clearAllToasts}
-            className="text-[11px] font-bold text-slate-600 hover:text-slate-900 bg-white/90 hover:bg-white px-2.5 py-1 rounded-lg border border-slate-200/80 shadow-xs backdrop-blur-xs transition-all cursor-pointer"
+            className="text-[11px] font-bold text-slate-600 hover:text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-xs transition-all cursor-pointer"
           >
             Clear all ({toasts.length})
           </button>
@@ -57,7 +57,7 @@ const ToastCard: React.FC<{
       case "checkout":
         return {
           icon: <ShoppingBag className="w-5 h-5 text-emerald-600" />,
-          accentBg: "bg-emerald-50 border-emerald-200/80",
+          accentBg: "bg-emerald-50 border-emerald-200",
           iconBg: "bg-emerald-100 text-emerald-700",
           tagBg: "bg-emerald-100 text-emerald-800 border-emerald-200",
           progressBarBg: "bg-emerald-500",
@@ -66,7 +66,7 @@ const ToastCard: React.FC<{
       case "product_added":
         return {
           icon: <PackagePlus className="w-5 h-5 text-[#0a4738]" />,
-          accentBg: "bg-emerald-50/90 border-[#3be8b0]/50",
+          accentBg: "bg-emerald-50 border-[#3be8b0]",
           iconBg: "bg-[#0a4738] text-[#3be8b0]",
           tagBg: "bg-emerald-100 text-emerald-900 border-emerald-200",
           progressBarBg: "bg-[#0a4738]",
@@ -75,7 +75,7 @@ const ToastCard: React.FC<{
       case "upload":
         return {
           icon: <CloudUpload className="w-5 h-5 text-teal-600" />,
-          accentBg: "bg-teal-50/90 border-teal-200/80",
+          accentBg: "bg-teal-50 border-teal-200",
           iconBg: "bg-teal-100 text-teal-700",
           tagBg: "bg-teal-100 text-teal-800 border-teal-200",
           progressBarBg: "bg-teal-500",
@@ -84,7 +84,7 @@ const ToastCard: React.FC<{
       case "error":
         return {
           icon: <AlertCircle className="w-5 h-5 text-red-600" />,
-          accentBg: "bg-red-50/90 border-red-200/80",
+          accentBg: "bg-red-50 border-red-200",
           iconBg: "bg-red-100 text-red-700",
           tagBg: "bg-red-100 text-red-800 border-red-200",
           progressBarBg: "bg-red-500",
@@ -93,7 +93,7 @@ const ToastCard: React.FC<{
       case "warning":
         return {
           icon: <AlertTriangle className="w-5 h-5 text-amber-600" />,
-          accentBg: "bg-amber-50/90 border-amber-200/80",
+          accentBg: "bg-amber-50 border-amber-200",
           iconBg: "bg-amber-100 text-amber-700",
           tagBg: "bg-amber-100 text-amber-800 border-amber-200",
           progressBarBg: "bg-amber-500",
@@ -102,7 +102,7 @@ const ToastCard: React.FC<{
       case "info":
         return {
           icon: <Info className="w-5 h-5 text-blue-600" />,
-          accentBg: "bg-blue-50/90 border-blue-200/80",
+          accentBg: "bg-blue-50 border-blue-200",
           iconBg: "bg-blue-100 text-blue-700",
           tagBg: "bg-blue-100 text-blue-800 border-blue-200",
           progressBarBg: "bg-blue-500",
@@ -112,7 +112,7 @@ const ToastCard: React.FC<{
       default:
         return {
           icon: <CheckCircle2 className="w-5 h-5 text-emerald-600" />,
-          accentBg: "bg-emerald-50/90 border-emerald-200/80",
+          accentBg: "bg-emerald-50 border-emerald-200",
           iconBg: "bg-emerald-100 text-emerald-700",
           tagBg: "bg-emerald-100 text-emerald-800 border-emerald-200",
           progressBarBg: "bg-emerald-500",
@@ -126,7 +126,7 @@ const ToastCard: React.FC<{
   return (
     <div
       role="alert"
-      className={`pointer-events-auto bg-white/95 backdrop-blur-md rounded-2xl border shadow-xl overflow-hidden transition-all duration-200 animate-in slide-in-from-top-3 sm:slide-in-from-right-3 ${config.accentBg}`}
+      className={`pointer-events-auto bg-white rounded-2xl border shadow-xl overflow-hidden transition-all duration-200 animate-in slide-in-from-top-3 sm:slide-in-from-right-3 ${config.accentBg}`}
     >
       <div className="p-3.5 sm:p-4">
         <div className="flex items-start gap-3">
@@ -162,7 +162,7 @@ const ToastCard: React.FC<{
               <div className="mt-2.5 flex items-center gap-1.5 flex-wrap text-xs">
                 {/* Checkout Specific Details */}
                 {details.receiptId && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-100/90 text-emerald-900 font-mono font-bold text-[11px] border border-emerald-200">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-900 font-mono font-bold text-[11px] border border-emerald-200">
                     <Receipt className="w-3 h-3 text-emerald-700" />
                     {details.receiptId}
                   </span>
@@ -216,7 +216,7 @@ const ToastCard: React.FC<{
             type="button"
             onClick={onDismiss}
             aria-label="Dismiss notification"
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer shrink-0 -mt-1 -mr-1"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer shrink-0 -mt-1 -mr-1"
           >
             <X className="w-4 h-4" />
           </button>

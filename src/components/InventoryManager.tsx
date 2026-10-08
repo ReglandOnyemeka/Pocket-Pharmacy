@@ -448,7 +448,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         
         {/* Table Controls */}
-        <div className="p-5 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50/50">
+        <div className="p-5 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50">
           <div>
             <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
               <Package className="w-5 h-5 text-emerald-600" />
@@ -520,7 +520,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
         </div>
 
         {/* 10-Product View Bar & Swipe Instructions */}
-        <div className="p-3 px-5 border-b border-slate-200 flex items-center justify-between bg-emerald-50/60 text-xs">
+        <div className="p-3 px-5 border-b border-slate-200 flex items-center justify-between bg-emerald-50 text-xs">
           <div className="flex items-center gap-2 text-emerald-900 font-semibold">
             <Layers className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>
@@ -578,7 +578,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
             paginatedProducts.map((p) => {
               const isLow = p.quantity <= p.low_stock_threshold;
               return (
-                <div key={p.id} className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-3.5 space-y-2.5 shadow-xs">
+                <div key={p.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2.5 shadow-xs">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
@@ -605,7 +605,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-xs bg-white p-2.5 rounded-xl border border-slate-200/60">
+                  <div className="grid grid-cols-2 gap-2 text-xs bg-white p-2.5 rounded-xl border border-slate-200">
                     <div>
                       <span className="text-slate-400 text-[10px] uppercase font-semibold block">Selling Price</span>
                       <span className="font-bold text-slate-900 font-mono text-sm">₦{p.price.toLocaleString("en-NG")}</span>
@@ -619,7 +619,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                   </div>
 
                   {canEditInventory && (
-                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-200/60">
+                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-200">
                       <button
                         onClick={() => setEditingProduct(p)}
                         className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-emerald-50 hover:text-emerald-700 border border-slate-200 flex items-center gap-1 cursor-pointer transition-all shadow-xs"
@@ -651,7 +651,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
         >
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-600 text-xs font-semibold uppercase tracking-wider sticky top-0 bg-slate-100 z-10">
+              <tr className="bg-slate-100 border-b border-slate-200 text-slate-600 text-xs font-semibold uppercase tracking-wider sticky top-0 z-10">
                 <th className="py-3.5 px-4 sm:px-6">Product & Molecule</th>
                 <th className="py-3.5 px-4">Category</th>
                 <th className="py-3.5 px-4 text-right">Cost Price</th>
@@ -673,7 +673,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                 paginatedProducts.map((p) => {
                   const isLow = p.quantity <= p.low_stock_threshold;
                   return (
-                    <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
+                    <tr key={p.id} className="hover:bg-slate-50 transition-colors">
                       <td className="py-3.5 px-4 sm:px-6">
                         <div className="flex items-center gap-2">
                           <div>
@@ -750,7 +750,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
 
         {/* Pagination Footer */}
         {totalPages > 1 && (
-          <div className="p-3.5 border-t border-slate-200 bg-slate-50/60 flex items-center justify-between gap-3 flex-wrap">
+          <div className="p-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-3 flex-wrap">
             <p className="text-xs text-slate-500">
               Page <span className="font-bold text-slate-800">{currentSafePage}</span> of{" "}
               <span className="font-bold text-slate-800">{totalPages}</span> (10 items/page)
@@ -1136,7 +1136,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
             <div className="flex-1 overflow-y-auto py-4 space-y-5 pr-1">
               
               {/* Template Download & Key Note Banner */}
-              <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="flex items-start gap-3">
                   <Info className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
                   <div className="text-xs text-emerald-900 leading-relaxed">
@@ -1377,8 +1377,8 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                   onClick={() => modalFileInputRef.current?.click()}
                   className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
                     isDraggingBulk
-                      ? "border-emerald-500 bg-emerald-50/60"
-                      : "border-slate-300 hover:border-emerald-500 hover:bg-slate-50/60 bg-white"
+                      ? "border-emerald-500 bg-emerald-50"
+                      : "border-slate-300 hover:border-emerald-500 hover:bg-slate-50 bg-white"
                   }`}
                 >
                   <input
@@ -1420,7 +1420,7 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
 
               {/* Parsed Verification Preview */}
               {parsedBulkProducts.length > 0 && (
-                <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200 space-y-3 animate-in slide-in-from-bottom-2 duration-200">
+                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-3 animate-in slide-in-from-bottom-2 duration-200">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="w-5 h-5 text-emerald-600" />

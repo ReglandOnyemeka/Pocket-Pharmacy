@@ -271,7 +271,7 @@ export const POSDesk: React.FC<POSDeskProps> = ({
         </div>
 
         {/* 5-Product View Bar & Swipe Instructions */}
-        <div className="flex items-center justify-between bg-emerald-50/70 border border-emerald-200/80 px-4 py-2 rounded-xl text-xs">
+        <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 px-4 py-2 rounded-xl text-xs">
           <div className="flex items-center gap-2 text-emerald-900 font-semibold">
             <Layers className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>
@@ -574,7 +574,7 @@ export const POSDesk: React.FC<POSDeskProps> = ({
                 <button
                   type="button"
                   onClick={setExactCash}
-                  className="px-2 py-1.5 rounded-lg bg-emerald-100/70 hover:bg-emerald-200 text-[#0a4738] text-xs font-bold transition-colors cursor-pointer text-center"
+                  className="px-2 py-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-[#0a4738] text-xs font-bold transition-colors cursor-pointer text-center"
                 >
                   Exact Cash
                 </button>
@@ -752,14 +752,14 @@ export const POSDesk: React.FC<POSDeskProps> = ({
                 cartElem.scrollIntoView({ behavior: "smooth", block: "start" });
               }
             }}
-            className="w-full bg-[#0a4738] hover:bg-[#063327] text-white p-3 rounded-2xl shadow-2xl border border-[#3be8b0]/40 flex items-center justify-between font-bold active:scale-[0.98] transition-all cursor-pointer"
+            className="w-full bg-[#0a4738] hover:bg-[#063327] text-white p-3 rounded-2xl shadow-2xl border border-[#3be8b0] flex items-center justify-between font-bold active:scale-[0.98] transition-all cursor-pointer"
           >
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-[#3be8b0] text-[#0a4738] flex items-center justify-center font-black text-xs shadow-xs">
                 {cart.reduce((s, i) => s + i.quantity, 0)}
               </div>
               <div className="text-left">
-                <span className="text-[10px] text-emerald-200/80 uppercase font-semibold block leading-none">
+                <span className="text-[10px] text-emerald-300 uppercase font-semibold block leading-none">
                   Cart Total ({cart.length} SKU{cart.length === 1 ? "" : "s"})
                 </span>
                 <span className="text-base text-white font-mono leading-tight font-black">

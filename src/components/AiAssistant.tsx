@@ -285,7 +285,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
 
       {/* ================= INTERNAL IN-HOUSE INVENTORY MATCHES ================= */}
       {(brandName.trim() || molecule.trim()) && (
-        <div className="bg-white rounded-2xl p-6 border border-emerald-200/80 shadow-sm space-y-4">
+        <div className="bg-white rounded-2xl p-6 border border-emerald-200 shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center">
@@ -323,7 +323,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
                 return (
                   <div
                     key={product.id}
-                    className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-white hover:border-emerald-300 transition-all flex flex-col justify-between gap-3 shadow-sm"
+                    className="p-4 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white hover:border-emerald-300 transition-all flex flex-col justify-between gap-3 shadow-sm"
                   >
                     <div>
                       <div className="flex items-start justify-between gap-2">
@@ -355,7 +355,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
                       </div>
                     </div>
 
-                    <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between">
+                    <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
                       <div className="text-xs font-semibold">
                         {isOutOfStock ? (
                           <span className="text-red-600">Out of Stock (0)</span>
@@ -436,7 +436,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
 
             <div className="flex items-center gap-2">
               {executionTimeMs !== null && (
-                <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/50">
+                <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">
                   <Gauge className="w-3 h-3" />
                   {executionTimeMs}ms
                 </span>

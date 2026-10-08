@@ -386,7 +386,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                 Super Admin Control Center
               </h1>
             </div>
-            <p className="text-sm sm:text-base text-emerald-100/90 max-w-2xl leading-relaxed">
+            <p className="text-sm sm:text-base text-emerald-300 max-w-2xl leading-relaxed">
               Dedicated workspace for <span className="font-bold text-[#3be8b0]">{currentPharmacy.name}</span>. Manage sales analytics, stock discrepancy audits, automated reminders, staff permissions, and cloud database backups.
             </p>
           </div>
@@ -398,8 +398,8 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
               disabled={isBackingUp}
               className={`px-5 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2.5 transition-all shadow-md ${
                 isBackingUp
-                  ? "bg-[#063327] text-emerald-300/50 border border-[#145a49] cursor-not-allowed"
-                  : "bg-[#145a49] hover:bg-[#1b6b57] text-white border border-[#3be8b0]/40 shadow-emerald-950/40"
+                  ? "bg-[#063327] text-emerald-400 border border-[#145a49] cursor-not-allowed"
+                  : "bg-[#145a49] hover:bg-[#1b6b57] text-white border border-[#3be8b0] shadow-emerald-950"
               }`}
             >
               <CloudUpload className={`w-5 h-5 text-[#3be8b0] ${isBackingUp ? "animate-spin" : ""}`} />
@@ -415,7 +415,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
               activeAdminTab === "sales"
                 ? "bg-emerald-600 text-white shadow-sm"
-                : "bg-slate-800/80 hover:bg-slate-800 text-slate-300"
+                : "bg-slate-800 hover:bg-slate-700 text-slate-300"
             }`}
           >
             <BarChart3 className="w-4 h-4" />
@@ -427,7 +427,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
               activeAdminTab === "auditor"
                 ? "bg-emerald-600 text-white shadow-sm"
-                : "bg-slate-800/80 hover:bg-slate-800 text-slate-300"
+                : "bg-slate-800 hover:bg-slate-700 text-slate-300"
             }`}
           >
             <ClipboardCheck className="w-4 h-4" />
@@ -439,7 +439,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
               activeAdminTab === "staff"
                 ? "bg-emerald-600 text-white shadow-sm"
-                : "bg-slate-800/80 hover:bg-slate-800 text-slate-300"
+                : "bg-slate-800 hover:bg-slate-700 text-slate-300"
             }`}
           >
             <Users className="w-4 h-4" />
@@ -451,7 +451,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
               activeAdminTab === "workspace"
                 ? "bg-emerald-600 text-white shadow-sm"
-                : "bg-slate-800/80 hover:bg-slate-800 text-slate-300"
+                : "bg-slate-800 hover:bg-slate-700 text-slate-300"
             }`}
           >
             <Building2 className="w-4 h-4" />
@@ -512,7 +512,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             
             {/* Header & Filter Controls */}
-            <div className="p-5 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50/50">
+            <div className="p-5 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50">
               <div>
                 <h3 className="text-lg font-bold text-slate-900">Sales Transactions Ledger</h3>
                 <p className="text-sm text-slate-500">Real-time audit log of all customer purchases</p>
@@ -556,7 +556,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-600 text-xs font-semibold uppercase tracking-wider">
+                  <tr className="bg-slate-100 border-b border-slate-200 text-slate-600 text-xs font-semibold uppercase tracking-wider">
                     <th className="py-3 px-4 sm:px-6">Time & Date</th>
                     <th className="py-3 px-4">Cashier</th>
                     <th className="py-3 px-4">Dispensed Products</th>
@@ -700,7 +700,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
           {/* Audit History Log */}
           <div className="lg:col-span-7 space-y-4">
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="p-5 border-b border-slate-200 bg-slate-50/50">
+              <div className="p-5 border-b border-slate-200 bg-slate-50">
                 <h3 className="text-lg font-bold text-slate-900">Reconciliation & Audit History</h3>
                 <p className="text-sm text-slate-500">Historical records of shelf counts and quantity revisions</p>
               </div>
@@ -854,7 +854,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-200">
                       <span className="text-slate-500">Email:</span>
                       <span className="text-slate-700 truncate max-w-[150px] font-medium">{user.email}</span>
                     </div>
@@ -967,7 +967,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                     </div>
                   </div>
 
-                  <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2">
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2">
                     <label className="block text-xs font-bold text-emerald-900 uppercase tracking-wide">
                       Password (6-8 characters) *
                     </label>

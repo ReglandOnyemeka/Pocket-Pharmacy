@@ -63,13 +63,31 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const getFirstName = () => {
     if (!currentUser) return "Team";
-    const name = (currentUser.fullName || currentUser.username || "").trim();
-    if (!name) return "Team";
-    const parts = name.split(" ").filter(Boolean);
-    if (parts.length > 1 && /^(pharm\.?|dr\.?|mr\.?|mrs\.?|ms\.?|pharmacist)$/i.test(parts[0])) {
-      return parts[1];
+    const raw = (currentUser.fullName || currentUser.username || "").trim();
+    if (!raw) return "Team";
+
+    // Clean up if raw contains email domain
+    const clean = raw.includes("@") ? raw.split("@")[0] : raw;
+    
+    // Split into words
+    const parts = clean.split(/[\s_]+/).filter(Boolean);
+    if (!parts.length) return "Team";
+
+    // If first part is an honorific/title (Dr., Pharm., Mr., Mrs., Ms., Pharmacist), pick the actual first name
+    let firstName = parts[0];
+    if (parts.length > 1 && /^(pharm\.?|dr\.?|mr\.?|mrs\.?|ms\.?|pharmacist|doc)$/i.test(parts[0])) {
+      firstName = parts[1];
     }
-    return parts[0];
+
+    // Strip non-alphanumeric punctuation
+    firstName = firstName.replace(/[^a-zA-Z0-9'-]/g, "");
+
+    // Capitalize first letter
+    if (firstName.length > 0) {
+      firstName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
+    }
+
+    return firstName || "User";
   };
 
   const handleSelectTab = (tab: "pos" | "inventory" | "alerts" | "ai_consult" | "admin") => {
@@ -83,25 +101,26 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-18">
             
-            {/* Brand & Pharmacy Identity with Pocket Pharmacy Logo */}
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {/* Brand & Pharmacy Identity */}
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 max-w-[50%] xs:max-w-[58%] sm:max-w-none">
               <PocketPharmacyLogo
                 size="md"
                 variant="dark"
                 tenantName={currentPharmacy.name}
                 tenantLocation={currentPharmacy.location}
                 showTenantSubtitle={true}
+                showBrandName={false}
               />
             </div>
 
             {/* Desktop Navigation: Primary Navigation Buttons (lg screens and above) */}
-            <nav className="hidden lg:flex items-center gap-1.5 bg-[#063327]/80 p-1.5 rounded-xl border border-[#145a49] shadow-inner">
+            <nav className="hidden lg:flex items-center gap-1.5 bg-[#063327] p-1.5 rounded-xl border border-[#145a49] shadow-inner">
               <button
                 onClick={() => setActiveTab("pos")}
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-bold transition-all cursor-pointer ${
                   activeTab === "pos"
-                    ? "bg-[#145a49] text-white shadow-md ring-2 ring-[#3be8b0]"
-                    : "text-emerald-100/90 hover:text-white hover:bg-[#0e4d3c]"
+                    ? "bg-[#145a49] text-[#3be8b0] shadow-md ring-2 ring-[#3be8b0]"
+                    : "text-[#3be8b0] hover:text-white hover:bg-[#0e4d3c]"
                 }`}
               >
                 <ShoppingBag className="w-4 h-4 text-[#3be8b0]" />
@@ -112,8 +131,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setActiveTab("inventory")}
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-bold transition-all cursor-pointer ${
                   activeTab === "inventory"
-                    ? "bg-[#145a49] text-white shadow-md ring-2 ring-[#3be8b0]"
-                    : "text-emerald-100/90 hover:text-white hover:bg-[#0e4d3c]"
+                    ? "bg-[#145a49] text-[#3be8b0] shadow-md ring-2 ring-[#3be8b0]"
+                    : "text-[#3be8b0] hover:text-white hover:bg-[#0e4d3c]"
                 }`}
               >
                 <Package className="w-4 h-4 text-[#3be8b0]" />
@@ -124,8 +143,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setActiveTab("alerts")}
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-bold transition-all cursor-pointer ${
                   activeTab === "alerts"
-                    ? "bg-[#145a49] text-white shadow-md ring-2 ring-[#3be8b0]"
-                    : "text-emerald-100/90 hover:text-white hover:bg-[#0e4d3c]"
+                    ? "bg-[#145a49] text-[#3be8b0] shadow-md ring-2 ring-[#3be8b0]"
+                    : "text-[#3be8b0] hover:text-white hover:bg-[#0e4d3c]"
                 }`}
               >
                 <Layers className="w-4 h-4 text-[#3be8b0]" />
@@ -136,8 +155,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setActiveTab("ai_consult")}
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-bold transition-all cursor-pointer ${
                   activeTab === "ai_consult"
-                    ? "bg-[#145a49] text-white shadow-md ring-2 ring-[#3be8b0]"
-                    : "text-emerald-100/90 hover:text-white hover:bg-[#0e4d3c]"
+                    ? "bg-[#145a49] text-[#3be8b0] shadow-md ring-2 ring-[#3be8b0]"
+                    : "text-[#3be8b0] hover:text-white hover:bg-[#0e4d3c]"
                 }`}
               >
                 <Zap className="w-4 h-4 text-[#3be8b0] fill-[#3be8b0]" />
@@ -149,11 +168,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => setActiveTab("admin")}
                   className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-bold transition-all cursor-pointer ${
                     activeTab === "admin"
-                      ? "bg-[#3be8b0] text-[#0a4738] shadow-md ring-2 ring-white font-black"
-                      : "text-[#3be8b0] hover:text-white hover:bg-[#145a49]/60"
+                      ? "bg-[#3be8b0] text-[#0a4738] shadow-md ring-2 ring-[#3be8b0] font-black"
+                      : "text-[#3be8b0] hover:text-white hover:bg-[#145a49]"
                   }`}
                 >
-                  <ShieldAlert className="w-4 h-4" />
+                  <ShieldAlert className="w-4 h-4 text-[#3be8b0]" />
                   Super Admin
                 </button>
               )}
@@ -190,7 +209,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
 
                 {lastBackupTime && (
-                  <span className="hidden xl:block text-[10px] text-emerald-200/60 mt-0.5 font-mono">
+                  <span className="hidden xl:block text-[10px] text-emerald-300 mt-0.5 font-mono">
                     Saved {new Date(lastBackupTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 )}
@@ -198,7 +217,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {/* User Greeting & Quick In-Place Logout (desktop/tablet) */}
               <div className="hidden sm:flex flex-col items-end justify-center">
-                <span className="text-xs font-medium text-emerald-200/90 leading-tight">
+                <span className="text-xs font-medium text-emerald-300 leading-tight">
                   {(() => {
                     const hour = new Date().getHours();
                     if (hour < 12) return "Good morning,";
@@ -212,11 +231,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                   type="button"
                   onClick={onLogout}
                   title="Logout"
-                  className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-950/60 hover:bg-red-900/80 border border-red-800/50 text-red-200 hover:text-white text-[11px] font-bold transition-all cursor-pointer shadow-xs active:scale-95"
+                  className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-950 hover:bg-red-900 border border-red-800 text-red-200 hover:text-white text-[11px] font-bold transition-all cursor-pointer shadow-xs active:scale-95"
                 >
                   <LogOut className="w-3 h-3" />
                   <span>Logout</span>
                 </button>
+              </div>
+
+              {/* Mobile User Name Pill - ensures user name remains visible on small screen menu bar */}
+              <div
+                className="sm:hidden flex items-center gap-1 px-2 py-1 rounded-lg bg-[#063327] border border-[#145a49] text-[10.5px] font-bold text-[#3be8b0] shadow-xs truncate max-w-[80px] xs:max-w-[110px]"
+                title={`Logged in as ${getFirstName()}`}
+              >
+                <User className="w-3 h-3 text-[#3be8b0] shrink-0" />
+                <span className="truncate">{getFirstName()}</span>
               </div>
 
               {/* Mobile Menu Toggle Button */}
@@ -251,8 +279,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <p className="font-bold text-white text-xs truncate">
                   {currentPharmacy.name}
                 </p>
-                <p className="text-[11px] text-emerald-200/70 truncate">
-                  {currentPharmacy.location} • {getFirstName()}
+                <p className="text-[10px] text-emerald-300 truncate mt-0.5" title={currentPharmacy.location}>
+                  {currentPharmacy.location} • <span className="font-bold text-white">{getFirstName()}</span>
                 </p>
               </div>
               <button
@@ -273,68 +301,68 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => handleSelectTab("pos")}
                 className={`w-full px-3 py-2 rounded-xl flex items-center justify-between border transition-all text-left cursor-pointer ${
                   activeTab === "pos"
-                    ? "bg-[#145a49] border-[#3be8b0] text-white shadow-xs ring-1 ring-[#3be8b0]"
-                    : "bg-[#063327] border-[#145a49]/60 text-emerald-100/90 hover:bg-[#0e4d3c]"
+                    ? "bg-[#145a49] border-[#3be8b0] text-[#3be8b0] shadow-xs ring-1 ring-[#3be8b0]"
+                    : "bg-[#063327] border-[#145a49] text-[#3be8b0] hover:bg-[#0e4d3c]"
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-[#3be8b0] flex items-center justify-center font-bold">
+                  <div className="w-7 h-7 rounded-lg bg-[#0e4d3c] border border-[#1b6b57] text-[#3be8b0] flex items-center justify-center font-bold">
                     <ShoppingBag className="w-4 h-4" />
                   </div>
-                  <span className="font-bold text-xs sm:text-sm text-white">POS</span>
+                  <span className="font-bold text-xs sm:text-sm text-[#3be8b0]">POS</span>
                 </div>
-                <ChevronRight className="w-3.5 h-3.5 text-emerald-400" />
+                <ChevronRight className="w-3.5 h-3.5 text-[#3be8b0]" />
               </button>
 
               <button
                 onClick={() => handleSelectTab("inventory")}
                 className={`w-full px-3 py-2 rounded-xl flex items-center justify-between border transition-all text-left cursor-pointer ${
                   activeTab === "inventory"
-                    ? "bg-[#145a49] border-[#3be8b0] text-white shadow-xs ring-1 ring-[#3be8b0]"
-                    : "bg-[#063327] border-[#145a49]/60 text-emerald-100/90 hover:bg-[#0e4d3c]"
+                    ? "bg-[#145a49] border-[#3be8b0] text-[#3be8b0] shadow-xs ring-1 ring-[#3be8b0]"
+                    : "bg-[#063327] border-[#145a49] text-[#3be8b0] hover:bg-[#0e4d3c]"
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-[#3be8b0] flex items-center justify-center font-bold">
+                  <div className="w-7 h-7 rounded-lg bg-[#0e4d3c] border border-[#1b6b57] text-[#3be8b0] flex items-center justify-center font-bold">
                     <Package className="w-4 h-4" />
                   </div>
-                  <span className="font-bold text-xs sm:text-sm text-white">Inventory</span>
+                  <span className="font-bold text-xs sm:text-sm text-[#3be8b0]">Inventory</span>
                 </div>
-                <ChevronRight className="w-3.5 h-3.5 text-emerald-400" />
+                <ChevronRight className="w-3.5 h-3.5 text-[#3be8b0]" />
               </button>
 
               <button
                 onClick={() => handleSelectTab("alerts")}
                 className={`w-full px-3 py-2 rounded-xl flex items-center justify-between border transition-all text-left cursor-pointer ${
                   activeTab === "alerts"
-                    ? "bg-[#145a49] border-[#3be8b0] text-white shadow-xs ring-1 ring-[#3be8b0]"
-                    : "bg-[#063327] border-[#145a49]/60 text-emerald-100/90 hover:bg-[#0e4d3c]"
+                    ? "bg-[#145a49] border-[#3be8b0] text-[#3be8b0] shadow-xs ring-1 ring-[#3be8b0]"
+                    : "bg-[#063327] border-[#145a49] text-[#3be8b0] hover:bg-[#0e4d3c]"
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-[#3be8b0] flex items-center justify-center font-bold">
+                  <div className="w-7 h-7 rounded-lg bg-[#0e4d3c] border border-[#1b6b57] text-[#3be8b0] flex items-center justify-center font-bold">
                     <Layers className="w-4 h-4" />
                   </div>
-                  <span className="font-bold text-xs sm:text-sm text-white">Alerts</span>
+                  <span className="font-bold text-xs sm:text-sm text-[#3be8b0]">Alerts</span>
                 </div>
-                <ChevronRight className="w-3.5 h-3.5 text-emerald-400" />
+                <ChevronRight className="w-3.5 h-3.5 text-[#3be8b0]" />
               </button>
 
               <button
                 onClick={() => handleSelectTab("ai_consult")}
                 className={`w-full px-3 py-2 rounded-xl flex items-center justify-between border transition-all text-left cursor-pointer ${
                   activeTab === "ai_consult"
-                    ? "bg-[#145a49] border-[#3be8b0] text-white shadow-xs ring-1 ring-[#3be8b0]"
-                    : "bg-[#063327] border-[#145a49]/60 text-emerald-100/90 hover:bg-[#0e4d3c]"
+                    ? "bg-[#145a49] border-[#3be8b0] text-[#3be8b0] shadow-xs ring-1 ring-[#3be8b0]"
+                    : "bg-[#063327] border-[#145a49] text-[#3be8b0] hover:bg-[#0e4d3c]"
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-[#3be8b0] flex items-center justify-center font-bold">
+                  <div className="w-7 h-7 rounded-lg bg-[#0e4d3c] border border-[#1b6b57] text-[#3be8b0] flex items-center justify-center font-bold">
                     <Zap className="w-4 h-4 fill-[#3be8b0]" />
                   </div>
-                  <span className="font-bold text-xs sm:text-sm text-white">Pharventory</span>
+                  <span className="font-bold text-xs sm:text-sm text-[#3be8b0]">Pharventory</span>
                 </div>
-                <ChevronRight className="w-3.5 h-3.5 text-emerald-400" />
+                <ChevronRight className="w-3.5 h-3.5 text-[#3be8b0]" />
               </button>
 
               {(currentRole === "super_admin" || currentRole === "admin") && (
@@ -343,18 +371,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className={`w-full px-3 py-2 rounded-xl flex items-center justify-between border transition-all text-left cursor-pointer ${
                     activeTab === "admin"
                       ? "bg-[#3be8b0] text-[#0a4738] border-white shadow-xs font-bold"
-                      : "bg-[#063327] border-[#3be8b0]/40 text-[#3be8b0] hover:bg-[#0e4d3c]"
+                      : "bg-[#063327] border-[#3be8b0] text-[#3be8b0] hover:bg-[#0e4d3c]"
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
                     <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold ${
-                      activeTab === "admin" ? "bg-[#0a4738] text-[#3be8b0]" : "bg-[#3be8b0]/20 text-[#3be8b0]"
+                      activeTab === "admin" ? "bg-[#0a4738] text-[#3be8b0]" : "bg-[#0e4d3c] border border-[#1b6b57] text-[#3be8b0]"
                     }`}>
                       <ShieldAlert className="w-4 h-4" />
                     </div>
-                    <span className="font-bold text-xs sm:text-sm">Super Admin</span>
+                    <span className="font-bold text-xs sm:text-sm text-[#3be8b0]">Super Admin</span>
                   </div>
-                  <ChevronRight className="w-3.5 h-3.5" />
+                  <ChevronRight className="w-3.5 h-3.5 text-[#3be8b0]" />
                 </button>
               )}
             </div>
@@ -377,9 +405,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                   setIsMobileMenuOpen(false);
                   onLogout();
                 }}
-                className="py-2 px-3.5 rounded-lg bg-red-950/70 hover:bg-red-900 border border-red-800/60 text-red-200 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                className="py-2 px-3.5 rounded-lg bg-red-950 hover:bg-red-900 border border-red-800 text-red-200 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
               >
-                <LogOut className="w-3.5 h-3.5" />
+                <LogOut className="w-3 h-3" />
                 <span>Logout</span>
               </button>
             </div>

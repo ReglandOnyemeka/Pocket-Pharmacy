@@ -7,6 +7,8 @@ interface PocketPharmacyLogoProps {
   tenantLocation?: string;
   showTenantSubtitle?: boolean;
   className?: string;
+  showBrandName?: boolean;
+  userName?: string;
 }
 
 export const PocketPharmacyLogo: React.FC<PocketPharmacyLogoProps> = ({
@@ -15,35 +17,36 @@ export const PocketPharmacyLogo: React.FC<PocketPharmacyLogoProps> = ({
   tenantName,
   tenantLocation,
   showTenantSubtitle = true,
-  className = ""
+  className = "",
+  showBrandName = true,
+  userName
 }) => {
   const isLight = variant === "light";
 
   const iconSizes = {
     sm: "w-8 h-8 rounded-xl",
-    md: "w-11 h-11 rounded-2xl",
+    md: "w-10 h-10 sm:w-11 sm:h-11 rounded-2xl",
     lg: "w-14 h-14 rounded-2xl"
   };
 
   const plusSizes = {
     sm: "w-5 h-5",
-    md: "w-6 h-6",
+    md: "w-5.5 h-5.5 sm:w-6 sm:h-6",
     lg: "w-8 h-8"
   };
 
   const titleSizes = {
-    sm: "text-base",
-    md: "text-lg sm:text-xl",
+    sm: "text-sm sm:text-base",
+    md: "text-base sm:text-lg md:text-xl",
     lg: "text-2xl sm:text-3xl"
   };
 
   return (
-    <div className={`flex items-center gap-3.5 select-none ${className}`}>
+    <div className={`flex items-center gap-2.5 sm:gap-3.5 select-none min-w-0 ${className}`}>
       {/* Authentic Original Pocket Pharmacy Rounded Plus Badge */}
       <div
-        className={`${iconSizes[size]} shrink-0 bg-[#0a4738] border border-[#1b614f]/80 shadow-md flex items-center justify-center relative overflow-hidden`}
+        className={`${iconSizes[size]} shrink-0 bg-[#0a4738] border border-[#1b614f] shadow-md flex items-center justify-center relative overflow-hidden`}
       >
-        <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -59,37 +62,46 @@ export const PocketPharmacyLogo: React.FC<PocketPharmacyLogoProps> = ({
       </div>
 
       {/* Brand & Tenant Labeling */}
-      <div className="flex flex-col justify-center">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span
-            className={`font-bold tracking-tight ${
-              isLight ? "text-[#0a4738]" : "text-white"
-            } ${titleSizes[size]}`}
-          >
-            Pocket Pharmacy
-          </span>
+      <div className="flex flex-col justify-center min-w-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0">
+          {showBrandName ? (
+            <>
+              <span
+                className={`font-bold tracking-tight ${
+                  isLight ? "text-[#0a4738]" : "text-white"
+                } ${titleSizes[size]}`}
+              >
+                Pocket Pharmacy
+              </span>
 
-          {tenantName && (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#145a49] text-[#3be8b0] border border-[#3be8b0]/30 uppercase tracking-wider shadow-xs">
-              {tenantName}
-            </span>
+              {tenantName && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-[#145a49] text-[#3be8b0] border border-[#3be8b0] uppercase tracking-wider shadow-xs truncate max-w-[140px] sm:max-w-none">
+                  {tenantName}
+                </span>
+              )}
+            </>
+          ) : (
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+              <span
+                title={tenantName || "Pharmacy"}
+                className={`font-bold tracking-tight truncate ${
+                  isLight ? "text-[#0a4738]" : "text-white"
+                } ${titleSizes[size]} max-w-[140px] xs:max-w-[200px] sm:max-w-xs md:max-w-sm`}
+              >
+                {tenantName || "Pharmacy"}
+              </span>
+            </div>
           )}
         </div>
 
         {showTenantSubtitle && (
           <p
-            className={`text-xs font-mono tracking-wider uppercase font-medium leading-tight truncate max-w-[220px] sm:max-w-md mt-0.5 ${
-              isLight ? "text-slate-500" : "text-[#6ee7b7]"
+            title={tenantLocation || (showBrandName ? "Pharmacy Operating Workspace" : "")}
+            className={`text-[9.5px] sm:text-[11px] font-normal leading-tight truncate max-w-[125px] xs:max-w-[180px] sm:max-w-[250px] md:max-w-sm mt-0.5 ${
+              isLight ? "text-slate-500" : "text-emerald-300"
             }`}
           >
-            {tenantLocation ? (
-              <span className="flex items-center gap-1.5 font-sans">
-                <span>{tenantLocation}</span>
-                <span className="opacity-70 font-mono">• WORKSPACE</span>
-              </span>
-            ) : (
-              "PHARMACY OPERATING WORKSPACE"
-            )}
+            {tenantLocation ? tenantLocation : (showBrandName ? "PHARMACY OPERATING WORKSPACE" : "")}
           </p>
         )}
       </div>
