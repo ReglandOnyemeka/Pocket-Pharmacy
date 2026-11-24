@@ -9,12 +9,6 @@ import {
   TenantSnapshot
 } from "../types";
 import {
-  DEFAULT_PHARMACY,
-  DEFAULT_USERS,
-  INITIAL_PRODUCTS_TEMPLATE,
-  INITIAL_FREQUENCIES_TEMPLATE
-} from "../data/initialData";
-import {
   db,
   doc,
   getDoc,
@@ -24,6 +18,19 @@ import {
   deleteDoc,
   onSnapshot
 } from "../lib/firebase";
+import {
+  idbSet,
+  idbHydrateLocalStorage,
+  enqueueOfflineSync,
+  getPendingSyncQueue,
+  removeOfflineSyncItems,
+  hasPendingOfflineChanges,
+  subscribePendingSyncQueue,
+  PendingSyncItem
+} from "./offlineSync";
+
+export { subscribePendingSyncQueue, getPendingSyncQueue, hasPendingOfflineChanges };
+export type { PendingSyncItem };
 
 const PHARMACIES_KEY = "pocket_pharmacies_registry";
 const USERS_REGISTRY_KEY = "pocket_users_global_registry";
@@ -32,6 +39,10 @@ const CURRENT_PHARMACY_KEY = "pocket_active_pharmacy";
 
 type RegistryListener = (pharmacies: Pharmacy[], users: AppUser[]) => void;
 const registryListeners = new Set<RegistryListener>();
+
+function isBrowserOnline(): boolean {
+  return typeof navigator === "undefined" ? true : navigator.onLine;
+}
 
 /**
  * Checks local cache or memory fallback
@@ -52,6 +63,25 @@ function setLocal<T>(key: string, value: T): void {
   } catch (e) {
     console.warn(`[Storage] Failed setting ${key}`, e);
   }
+  // Mirror to IndexedDB asynchronously for resilient offline-first storage
+  idbSet(key, value).catch(() => null);
+}
+
+/**
+ * Hydrates critical keys from IndexedDB into localStorage if localStorage was cleared
+ */
+export async function hydrateOfflineStorage(pharmacyId?: string): Promise<boolean> {
+  const keys = [PHARMACIES_KEY, USERS_REGISTRY_KEY, CURRENT_USER_KEY, CURRENT_PHARMACY_KEY];
+  if (pharmacyId) {
+    keys.push(
+      `tenant_${pharmacyId}_products`,
+      `tenant_${pharmacyId}_sales`,
+      `tenant_${pharmacyId}_audits`,
+      `tenant_${pharmacyId}_frequencies`,
+      `tenant_${pharmacyId}_logs`
+    );
+  }
+  return idbHydrateLocalStorage(keys);
 }
 
 /**
@@ -96,14 +126,19 @@ function setupRegistryRealtimeListener() {
           });
 
           if (cloudPharmacies.length > 0) {
-            const currentLocal = getLocal<Pharmacy[]>(PHARMACIES_KEY, [DEFAULT_PHARMACY]);
+            const currentLocal = getLocal<Pharmacy[]>(PHARMACIES_KEY, []);
             const mergedMap = new Map<string, Pharmacy>();
-            currentLocal.forEach((p) => mergedMap.set(p.id, p));
             cloudPharmacies.forEach((p) => mergedMap.set(p.id, p));
+            // Preserve locally created/edited pharmacies that haven't finished syncing yet
+            currentLocal.forEach((p) => {
+              if (!mergedMap.has(p.id) || hasPendingOfflineChanges(p.id)) {
+                mergedMap.set(p.id, p);
+              }
+            });
             const merged = Array.from(mergedMap.values());
             setLocal(PHARMACIES_KEY, merged);
 
-            const currentUsers = getLocal<AppUser[]>(USERS_REGISTRY_KEY, DEFAULT_USERS);
+            const currentUsers = getLocal<AppUser[]>(USERS_REGISTRY_KEY, []);
             notifyRegistryListeners(merged, currentUsers);
           }
         }
@@ -123,14 +158,25 @@ function setupRegistryRealtimeListener() {
           });
 
           if (cloudUsers.length > 0) {
-            const currentLocal = getLocal<AppUser[]>(USERS_REGISTRY_KEY, DEFAULT_USERS);
+            const currentLocal = getLocal<AppUser[]>(USERS_REGISTRY_KEY, []);
+            const pendingDeletes = new Set(
+              getPendingSyncQueue()
+                .filter((q) => q.entity === "user_delete" && q.targetId)
+                .map((q) => q.targetId!)
+            );
             const mergedMap = new Map<string, AppUser>();
-            currentLocal.forEach((u) => mergedMap.set(u.id, u));
-            cloudUsers.forEach((u) => mergedMap.set(u.id, u));
+            cloudUsers.forEach((u) => {
+              if (!pendingDeletes.has(u.id)) mergedMap.set(u.id, u);
+            });
+            currentLocal.forEach((u) => {
+              if (!mergedMap.has(u.id) || hasPendingOfflineChanges(u.pharmacyId)) {
+                mergedMap.set(u.id, u);
+              }
+            });
             const merged = Array.from(mergedMap.values());
             setLocal(USERS_REGISTRY_KEY, merged);
 
-            const currentPharmacies = getLocal<Pharmacy[]>(PHARMACIES_KEY, [DEFAULT_PHARMACY]);
+            const currentPharmacies = getLocal<Pharmacy[]>(PHARMACIES_KEY, []);
             notifyRegistryListeners(currentPharmacies, merged);
           }
         }
@@ -143,36 +189,34 @@ function setupRegistryRealtimeListener() {
 }
 
 /**
- * Initializes default multi-tenant registry from LocalStorage + bidirectional Firestore sync
+ * Initializes multi-tenant registry from LocalStorage (offline-first) + bidirectional Firestore sync when online.
+ * Does NOT seed placeholder pharmacies, placeholder users, or placeholder inventory.
  */
 export function initTenantRegistry(): { pharmacies: Pharmacy[]; users: AppUser[] } {
-  let pharmacies = getLocal<Pharmacy[]>(PHARMACIES_KEY, [DEFAULT_PHARMACY]);
-  let users = getLocal<AppUser[]>(USERS_REGISTRY_KEY, DEFAULT_USERS);
+  const pharmacies = getLocal<Pharmacy[]>(PHARMACIES_KEY, []);
+  const users = getLocal<AppUser[]>(USERS_REGISTRY_KEY, []);
 
-  if (pharmacies.length === 0) pharmacies = [DEFAULT_PHARMACY];
-  if (users.length === 0) users = DEFAULT_USERS;
-
-  setLocal(PHARMACIES_KEY, pharmacies);
-  setLocal(USERS_REGISTRY_KEY, users);
-
-  // Seed default tenant local structures
-  ensureTenantSeeded(DEFAULT_PHARMACY.id, true);
-
-  // Set up real-time listener
+  // Set up real-time listener (uses persistent IndexedDB cache when offline)
   setupRegistryRealtimeListener();
 
-  // Asynchronously synchronize global registry with Firebase
-  syncRegistryWithFirebase(pharmacies, users).catch((e) =>
-    console.warn("[Firestore] Silent registry sync warning:", e)
-  );
+  // Asynchronously synchronize global registry with Firebase when online
+  if (isBrowserOnline()) {
+    syncRegistryWithFirebase(pharmacies, users).catch((e) =>
+      console.warn("[Firestore] Silent registry sync warning:", e)
+    );
+  }
 
   return { pharmacies, users };
 }
 
 /**
- * Syncs pharmacies and users with Firestore bi-directionally
+ * Syncs pharmacies and users with Firestore bi-directionally (only when online)
  */
 export async function syncRegistryWithFirebase(localPharmacies: Pharmacy[], localUsers: AppUser[]) {
+  if (!isBrowserOnline()) {
+    return { pharmacies: localPharmacies, users: localUsers };
+  }
+
   try {
     let updatedPharmacies = [...localPharmacies];
     let updatedUsers = [...localUsers];
@@ -180,12 +224,7 @@ export async function syncRegistryWithFirebase(localPharmacies: Pharmacy[], loca
 
     // 1. Fetch cloud pharmacies
     const pharmSnapshot = await getDocs(collection(db, "pharmacies"));
-    if (pharmSnapshot.empty) {
-      // Seed initial cloud pharmacies
-      for (const p of localPharmacies) {
-        await setDoc(doc(db, "pharmacies", p.id), p);
-      }
-    } else {
+    if (!pharmSnapshot.empty) {
       const cloudPharmacies: Pharmacy[] = [];
       pharmSnapshot.forEach((docSnap) => {
         const p = docSnap.data() as Pharmacy;
@@ -193,8 +232,12 @@ export async function syncRegistryWithFirebase(localPharmacies: Pharmacy[], loca
       });
 
       const pharmMap = new Map<string, Pharmacy>();
-      localPharmacies.forEach((p) => pharmMap.set(p.id, p));
       cloudPharmacies.forEach((p) => pharmMap.set(p.id, p));
+      localPharmacies.forEach((p) => {
+        if (!pharmMap.has(p.id) || hasPendingOfflineChanges(p.id)) {
+          pharmMap.set(p.id, p);
+        }
+      });
       updatedPharmacies = Array.from(pharmMap.values());
       changed = true;
       setLocal(PHARMACIES_KEY, updatedPharmacies);
@@ -202,21 +245,28 @@ export async function syncRegistryWithFirebase(localPharmacies: Pharmacy[], loca
 
     // 2. Fetch cloud users
     const userSnapshot = await getDocs(collection(db, "users"));
-    if (userSnapshot.empty) {
-      // Seed initial cloud users
-      for (const u of localUsers) {
-        await setDoc(doc(db, "users", u.id), u);
-      }
-    } else {
+    if (!userSnapshot.empty) {
       const cloudUsers: AppUser[] = [];
       userSnapshot.forEach((docSnap) => {
         const u = docSnap.data() as AppUser;
         if (u && u.id) cloudUsers.push(u);
       });
 
+      const pendingDeletes = new Set(
+        getPendingSyncQueue()
+          .filter((q) => q.entity === "user_delete" && q.targetId)
+          .map((q) => q.targetId!)
+      );
+
       const userMap = new Map<string, AppUser>();
-      localUsers.forEach((u) => userMap.set(u.id, u));
-      cloudUsers.forEach((u) => userMap.set(u.id, u));
+      cloudUsers.forEach((u) => {
+        if (!pendingDeletes.has(u.id)) userMap.set(u.id, u);
+      });
+      localUsers.forEach((u) => {
+        if (!userMap.has(u.id) || hasPendingOfflineChanges(u.pharmacyId)) {
+          userMap.set(u.id, u);
+        }
+      });
       updatedUsers = Array.from(userMap.values());
       changed = true;
       setLocal(USERS_REGISTRY_KEY, updatedUsers);
@@ -234,7 +284,7 @@ export async function syncRegistryWithFirebase(localPharmacies: Pharmacy[], loca
 }
 
 /**
- * Performs robust asynchronous authentication against local cache and cloud Firestore
+ * Performs offline-first authentication against local cache first, falling back to Cloud Firestore when online
  */
 export async function authenticateUser(
   identifier: string,
@@ -252,9 +302,12 @@ export async function authenticateUser(
     return { success: false, message: "Please enter both username/email and password." };
   }
 
-  // 1. Check local registry first
+  // Hydrate from IndexedDB if localStorage is empty
+  await hydrateOfflineStorage();
+
+  // 1. Check local registry first (works 100% offline immediately)
   const { users: localUsers, pharmacies: localPharmacies } = initTenantRegistry();
-  
+
   const matchLocal = localUsers.find((u) => {
     const uName = (u.username || "").toLowerCase().trim();
     const uEmail = (u.email || "").toLowerCase().trim();
@@ -268,21 +321,50 @@ export async function authenticateUser(
       String(matchLocal.pin).trim() === cleanPin;
 
     if (isPinMatch) {
-      const matchPharm =
-        localPharmacies.find((p) => p.id === matchLocal.pharmacyId) || DEFAULT_PHARMACY;
-      
-      // Async pull cloud tenant data to ensure freshest state
-      pullTenantFromFirebase(matchLocal.pharmacyId).catch(() => null);
-      
+      const matchPharm = localPharmacies.find((p) => p.id === matchLocal.pharmacyId) || {
+        id: matchLocal.pharmacyId,
+        name: "Pharmacy Workspace",
+        directorName: matchLocal.fullName,
+        location: "",
+        phone: matchLocal.phone || "",
+        email: matchLocal.email || "",
+        cacNumber: "",
+        pcnLicense: "",
+        currency: "₦",
+        createdAt: matchLocal.createdAt || new Date().toISOString(),
+        superAdminId: matchLocal.id
+      };
+
+      // Async pull cloud tenant data only when online and no unsynced local writes exist
+      if (isBrowserOnline()) {
+        pullTenantFromFirebase(matchLocal.pharmacyId).catch(() => null);
+      }
+
       return {
         success: true,
         user: matchLocal,
         pharmacy: matchPharm
       };
     }
+
+    if (!isBrowserOnline()) {
+      return {
+        success: false,
+        message: "Incorrect password. Please verify your credentials."
+      };
+    }
   }
 
-  // 2. Direct Cloud Verification via Firestore (handles fresh domains/browsers & updated credentials)
+  // If offline and user was not found in local device cache
+  if (!isBrowserOnline()) {
+    return {
+      success: false,
+      message:
+        "You are currently offline and this account has not been cached on this device yet. Connect to the internet once to sign in, or onboard a new offline workspace."
+    };
+  }
+
+  // 2. Direct Cloud Verification via Firestore (handles fresh browsers & updated credentials when online)
   try {
     const userSnapshot = await getDocs(collection(db, "users"));
     let foundCloudUser: AppUser | null = null;
@@ -329,13 +411,21 @@ export async function authenticateUser(
 
       if (!matchingPharm) {
         matchingPharm = {
-          ...DEFAULT_PHARMACY,
           id: cloudUser.pharmacyId,
-          name: "Pharmacy Terminal"
+          name: "Pharmacy Workspace",
+          directorName: cloudUser.fullName,
+          location: "",
+          phone: cloudUser.phone || "",
+          email: cloudUser.email || "",
+          cacNumber: "",
+          pcnLicense: "",
+          currency: "₦",
+          createdAt: cloudUser.createdAt || new Date().toISOString(),
+          superAdminId: cloudUser.id
         };
       }
 
-      // Merge into local registry
+      // Merge into local registry for future offline logins
       const updatedUsers = [...localUsers.filter((u) => u.id !== cloudUser.id), cloudUser];
       const updatedPharmacies = [
         ...localPharmacies.filter((p) => p.id !== matchingPharm!.id),
@@ -362,7 +452,6 @@ export async function authenticateUser(
     console.warn("[Firestore] Cloud authentication error:", cloudErr);
   }
 
-  // 3. If local user matched but PIN failed
   if (matchLocal) {
     return {
       success: false,
@@ -377,19 +466,17 @@ export async function authenticateUser(
 }
 
 /**
- * Ensures an isolated tenant has initial sample catalog and settings
+ * Ensures an isolated tenant has clean, empty local collections (no placeholder inventory or schedules)
  */
-export function ensureTenantSeeded(pharmacyId: string, isDefault = false) {
+export function ensureTenantSeeded(pharmacyId: string) {
   const prodKey = `tenant_${pharmacyId}_products`;
   if (!localStorage.getItem(prodKey)) {
-    const starterProds = isDefault ? INITIAL_PRODUCTS_TEMPLATE(pharmacyId) : [];
-    setLocal(prodKey, starterProds);
+    setLocal(prodKey, []);
   }
 
   const freqKey = `tenant_${pharmacyId}_frequencies`;
   if (!localStorage.getItem(freqKey)) {
-    const starterFreqs = isDefault ? INITIAL_FREQUENCIES_TEMPLATE(pharmacyId) : [];
-    setLocal(freqKey, starterFreqs);
+    setLocal(freqKey, []);
   }
 
   const salesKey = `tenant_${pharmacyId}_sales`;
@@ -409,9 +496,8 @@ export function ensureTenantSeeded(pharmacyId: string, isDefault = false) {
 }
 
 /**
- * Creates a brand new Pharmacy Tenant Workspace.
- * The creator is assigned as Super Admin of this new tenant.
- * Persists immediately both locally and in Firebase Firestore.
+ * Creates a brand new Pharmacy Tenant Workspace with empty inventory (zero placeholder items).
+ * Works 100% offline-first and syncs automatically to Firestore when online.
  */
 export function createTenantWorkspace(params: {
   pharmacyName: string;
@@ -436,8 +522,8 @@ export function createTenantWorkspace(params: {
     location: params.location,
     phone: params.phone,
     email: params.email,
-    cacNumber: params.cacNumber || `RC-${Math.floor(1000000 + Math.random() * 9000000)}`,
-    pcnLicense: params.pcnLicense || `PCN/REG/${new Date().getFullYear()}/${Math.floor(1000 + Math.random() * 9000)}`,
+    cacNumber: params.cacNumber || "",
+    pcnLicense: params.pcnLicense || "",
     currency: "₦",
     createdAt: new Date().toISOString(),
     superAdminId
@@ -456,10 +542,10 @@ export function createTenantWorkspace(params: {
     createdAt: new Date().toISOString()
   };
 
-  // Seed isolated tenant database
+  // Initialize strictly empty isolated tenant database (no placeholder inventory)
   ensureTenantSeeded(pharmacyId);
 
-  // Update registries locally
+  // Update registries locally first
   const updatedPharmacies = [...pharmacies, newPharmacy];
   const updatedUsers = [...users, newSuperAdmin];
 
@@ -470,31 +556,22 @@ export function createTenantWorkspace(params: {
 
   notifyRegistryListeners(updatedPharmacies, updatedUsers);
 
-  // Save to Firebase Firestore immediately
-  (async () => {
-    try {
-      await setDoc(doc(db, "pharmacies", pharmacyId), newPharmacy);
-      await setDoc(doc(db, "users", superAdminId), newSuperAdmin);
-      await setDoc(doc(db, "tenants", pharmacyId), {
-        pharmacy: newPharmacy,
-        users: [newSuperAdmin],
-        products: [],
-        sales: [],
-        audits: [],
-        frequencies: [],
-        logs: [],
-        updatedAt: new Date().toISOString()
-      });
-    } catch (e) {
-      console.warn("[Firestore] Error saving new tenant to cloud:", e);
-    }
-  })();
+  // Queue for offline-first cloud sync, and immediately sync if online
+  enqueueOfflineSync("pharmacy", pharmacyId);
+  enqueueOfflineSync("user", pharmacyId, superAdminId);
+  enqueueOfflineSync("tenant_full", pharmacyId);
+
+  if (isBrowserOnline()) {
+    syncPendingChangesToCloud().catch((e) =>
+      console.warn("[OfflineSync] Deferred new tenant sync:", e)
+    );
+  }
 
   return { pharmacy: newPharmacy, superAdmin: newSuperAdmin };
 }
 
 /**
- * Adds a new user under a Super Admin's tenant
+ * Adds a new user under a Super Admin's tenant (offline-first)
  */
 export function createTenantUser(
   pharmacyId: string,
@@ -518,7 +595,11 @@ export function createTenantUser(
     email: userData.email.trim(),
     phone: userData.phone?.trim(),
     pharmacyId,
-    accessibleFeatures: userData.accessibleFeatures || (userData.role === "cashier" ? ["sales"] : ["sales", "inventory", "audits", "ai_consult", "admin_panel"]),
+    accessibleFeatures:
+      userData.accessibleFeatures ||
+      (userData.role === "cashier"
+        ? ["sales"]
+        : ["sales", "inventory", "audits", "ai_consult", "admin_panel"]),
     createdAt: new Date().toISOString()
   };
 
@@ -526,10 +607,12 @@ export function createTenantUser(
   setLocal(USERS_REGISTRY_KEY, updatedUsers);
   notifyRegistryListeners(pharmacies, updatedUsers);
 
-  // Firestore async persist
-  setDoc(doc(db, "users", newUser.id), newUser).catch((err) =>
-    console.warn("[Firestore] User persist warning:", err)
-  );
+  enqueueOfflineSync("user", pharmacyId, newUser.id);
+  if (isBrowserOnline()) {
+    setDoc(doc(db, "users", newUser.id), newUser)
+      .then(() => removeOfflineSyncItems([`user:${pharmacyId}:${newUser.id}`]))
+      .catch((err) => console.warn("[Firestore] User persist deferred to offline queue:", err));
+  }
 
   return newUser;
 }
@@ -543,7 +626,7 @@ export function getTenantUsers(pharmacyId: string): AppUser[] {
 }
 
 /**
- * Updates a tenant user
+ * Updates a tenant user (offline-first)
  */
 export function updateTenantUser(updatedUser: AppUser): void {
   const { users, pharmacies } = initTenantRegistry();
@@ -551,13 +634,16 @@ export function updateTenantUser(updatedUser: AppUser): void {
   setLocal(USERS_REGISTRY_KEY, updated);
   notifyRegistryListeners(pharmacies, updated);
 
-  setDoc(doc(db, "users", updatedUser.id), updatedUser).catch((err) =>
-    console.warn("[Firestore] User update warning:", err)
-  );
+  enqueueOfflineSync("user", updatedUser.pharmacyId, updatedUser.id);
+  if (isBrowserOnline()) {
+    setDoc(doc(db, "users", updatedUser.id), updatedUser)
+      .then(() => removeOfflineSyncItems([`user:${updatedUser.pharmacyId}:${updatedUser.id}`]))
+      .catch((err) => console.warn("[Firestore] User update deferred to offline queue:", err));
+  }
 }
 
 /**
- * Resets password/PIN for Super Admin accounts with cloud & local sync
+ * Resets password/PIN for Super Admin accounts with offline-first local + cloud sync
  */
 export async function resetSuperAdminPin(
   identifier: string,
@@ -581,8 +667,8 @@ export async function resetSuperAdminPin(
       (u.username.toLowerCase() === cleanId || (u.email && u.email.toLowerCase() === cleanId))
   );
 
-  // 2. If not found locally, search Firestore
-  if (!superAdmin) {
+  // 2. If not found locally and online, search Firestore
+  if (!superAdmin && isBrowserOnline()) {
     try {
       const userSnapshot = await getDocs(collection(db, "users"));
       if (!userSnapshot.empty) {
@@ -603,7 +689,6 @@ export async function resetSuperAdminPin(
   }
 
   if (!superAdmin) {
-    // Check if the user exists but is not super_admin
     const regularUser = users.find(
       (u) =>
         u.username.toLowerCase() === cleanId || (u.email && u.email.toLowerCase() === cleanId)
@@ -618,7 +703,9 @@ export async function resetSuperAdminPin(
 
     return {
       success: false,
-      message: `No Super Admin account found matching "${identifier}". Please check your username or registered email.`
+      message: !isBrowserOnline()
+        ? `No cached Super Admin account found locally for "${identifier}" while offline.`
+        : `No Super Admin account found matching "${identifier}". Please check your username or registered email.`
     };
   }
 
@@ -631,17 +718,19 @@ export async function resetSuperAdminPin(
   setLocal(USERS_REGISTRY_KEY, updatedUsers);
   notifyRegistryListeners(pharmacies, updatedUsers);
 
-  // If current active user in localStorage is this super admin, update it too
   const activeUser = getLocal<AppUser | null>(CURRENT_USER_KEY, null);
   if (activeUser && activeUser.id === updatedAdmin.id) {
     setLocal(CURRENT_USER_KEY, updatedAdmin);
   }
 
-  // Update in Firestore
-  try {
-    await setDoc(doc(db, "users", updatedAdmin.id), updatedAdmin);
-  } catch (err) {
-    console.warn("[Firestore] Super admin password reset sync warning:", err);
+  enqueueOfflineSync("user", updatedAdmin.pharmacyId, updatedAdmin.id);
+  if (isBrowserOnline()) {
+    try {
+      await setDoc(doc(db, "users", updatedAdmin.id), updatedAdmin);
+      removeOfflineSyncItems([`user:${updatedAdmin.pharmacyId}:${updatedAdmin.id}`]);
+    } catch (err) {
+      console.warn("[Firestore] Super admin password reset queued for sync:", err);
+    }
   }
 
   return {
@@ -652,21 +741,26 @@ export async function resetSuperAdminPin(
 }
 
 /**
- * Deletes a tenant user
+ * Deletes a tenant user (offline-first)
  */
 export function deleteTenantUser(userId: string): void {
   const { users, pharmacies } = initTenantRegistry();
+  const target = users.find((u) => u.id === userId);
+  const pharmacyId = target?.pharmacyId || "global";
   const updated = users.filter((u) => u.id !== userId);
   setLocal(USERS_REGISTRY_KEY, updated);
   notifyRegistryListeners(pharmacies, updated);
 
-  deleteDoc(doc(db, "users", userId)).catch((err) =>
-    console.warn("[Firestore] User delete warning:", err)
-  );
+  enqueueOfflineSync("user_delete", pharmacyId, userId);
+  if (isBrowserOnline()) {
+    deleteDoc(doc(db, "users", userId))
+      .then(() => removeOfflineSyncItems([`user_delete:${pharmacyId}:${userId}`]))
+      .catch((err) => console.warn("[Firestore] User delete deferred to offline queue:", err));
+  }
 }
 
 /**
- * Updates pharmacy profile
+ * Updates pharmacy profile (offline-first)
  */
 export function updateTenantPharmacy(updatedPharmacy: Pharmacy): void {
   const { pharmacies, users } = initTenantRegistry();
@@ -675,13 +769,16 @@ export function updateTenantPharmacy(updatedPharmacy: Pharmacy): void {
   setLocal(CURRENT_PHARMACY_KEY, updatedPharmacy);
   notifyRegistryListeners(updated, users);
 
-  setDoc(doc(db, "pharmacies", updatedPharmacy.id), updatedPharmacy).catch((err) =>
-    console.warn("[Firestore] Pharmacy update warning:", err)
-  );
+  enqueueOfflineSync("pharmacy", updatedPharmacy.id);
+  if (isBrowserOnline()) {
+    setDoc(doc(db, "pharmacies", updatedPharmacy.id), updatedPharmacy)
+      .then(() => removeOfflineSyncItems([`pharmacy:${updatedPharmacy.id}`]))
+      .catch((err) => console.warn("[Firestore] Pharmacy update deferred to offline queue:", err));
+  }
 }
 
 /**
- * Reads isolated tenant products
+ * Reads isolated tenant products (always empty [] for fresh tenants — zero placeholder inventory)
  */
 export function getTenantProducts(pharmacyId: string): Product[] {
   const key = `tenant_${pharmacyId}_products`;
@@ -691,22 +788,25 @@ export function getTenantProducts(pharmacyId: string): Product[] {
   } catch (e) {
     console.error("Error reading tenant products", e);
   }
-  const defaults = pharmacyId === DEFAULT_PHARMACY.id ? INITIAL_PRODUCTS_TEMPLATE(pharmacyId) : [];
-  setLocal(key, defaults);
-  return defaults;
+  setLocal(key, []);
+  return [];
 }
 
 /**
- * Saves isolated tenant products
+ * Saves isolated tenant products (offline-first)
  */
-export function saveTenantProducts(pharmacyId: string, products: Product[]): void {
+export function saveTenantProducts(pharmacyId: string, products: Product[], skipQueue = false): void {
   const key = `tenant_${pharmacyId}_products`;
   setLocal(key, products);
 
-  // Firestore real-time save
-  setDoc(doc(db, "tenants", pharmacyId, "catalog", "products"), { items: products }, { merge: true }).catch((e) =>
-    console.warn("[Firestore] Catalog save warning:", e)
-  );
+  if (skipQueue) return;
+
+  enqueueOfflineSync("products", pharmacyId);
+  if (isBrowserOnline()) {
+    setDoc(doc(db, "tenants", pharmacyId, "catalog", "products"), { items: products }, { merge: true })
+      .then(() => removeOfflineSyncItems([`products:${pharmacyId}`]))
+      .catch((e) => console.warn("[Firestore] Catalog save deferred to offline queue:", e));
+  }
 }
 
 /**
@@ -724,16 +824,20 @@ export function getTenantSales(pharmacyId: string): SaleRecord[] {
 }
 
 /**
- * Saves isolated tenant sales records
+ * Saves isolated tenant sales records (offline-first)
  */
-export function saveTenantSales(pharmacyId: string, sales: SaleRecord[]): void {
+export function saveTenantSales(pharmacyId: string, sales: SaleRecord[], skipQueue = false): void {
   const key = `tenant_${pharmacyId}_sales`;
   setLocal(key, sales);
 
-  // Firestore real-time save
-  setDoc(doc(db, "tenants", pharmacyId, "records", "sales"), { items: sales }, { merge: true }).catch((e) =>
-    console.warn("[Firestore] Sales save warning:", e)
-  );
+  if (skipQueue) return;
+
+  enqueueOfflineSync("sales", pharmacyId);
+  if (isBrowserOnline()) {
+    setDoc(doc(db, "tenants", pharmacyId, "records", "sales"), { items: sales }, { merge: true })
+      .then(() => removeOfflineSyncItems([`sales:${pharmacyId}`]))
+      .catch((e) => console.warn("[Firestore] Sales save deferred to offline queue:", e));
+  }
 }
 
 /**
@@ -751,19 +855,24 @@ export function getTenantAudits(pharmacyId: string): StockAuditRecord[] {
 }
 
 /**
- * Saves isolated tenant audit history
+ * Saves isolated tenant audit history (offline-first)
  */
-export function saveTenantAudits(pharmacyId: string, audits: StockAuditRecord[]): void {
+export function saveTenantAudits(pharmacyId: string, audits: StockAuditRecord[], skipQueue = false): void {
   const key = `tenant_${pharmacyId}_audits`;
   setLocal(key, audits);
 
-  setDoc(doc(db, "tenants", pharmacyId, "records", "audits"), { items: audits }, { merge: true }).catch((e) =>
-    console.warn("[Firestore] Audits save warning:", e)
-  );
+  if (skipQueue) return;
+
+  enqueueOfflineSync("audits", pharmacyId);
+  if (isBrowserOnline()) {
+    setDoc(doc(db, "tenants", pharmacyId, "records", "audits"), { items: audits }, { merge: true })
+      .then(() => removeOfflineSyncItems([`audits:${pharmacyId}`]))
+      .catch((e) => console.warn("[Firestore] Audits save deferred to offline queue:", e));
+  }
 }
 
 /**
- * Reads isolated tenant stock frequencies
+ * Reads isolated tenant stock frequencies (always empty [] for fresh tenants)
  */
 export function getTenantFrequencies(pharmacyId: string): StockFrequency[] {
   const key = `tenant_${pharmacyId}_frequencies`;
@@ -773,21 +882,29 @@ export function getTenantFrequencies(pharmacyId: string): StockFrequency[] {
   } catch (e) {
     console.error("Error reading tenant frequencies", e);
   }
-  const defaults = pharmacyId === DEFAULT_PHARMACY.id ? INITIAL_FREQUENCIES_TEMPLATE(pharmacyId) : [];
-  setLocal(key, defaults);
-  return defaults;
+  setLocal(key, []);
+  return [];
 }
 
 /**
- * Saves isolated tenant stock frequencies
+ * Saves isolated tenant stock frequencies (offline-first)
  */
-export function saveTenantFrequencies(pharmacyId: string, frequencies: StockFrequency[]): void {
+export function saveTenantFrequencies(
+  pharmacyId: string,
+  frequencies: StockFrequency[],
+  skipQueue = false
+): void {
   const key = `tenant_${pharmacyId}_frequencies`;
   setLocal(key, frequencies);
 
-  setDoc(doc(db, "tenants", pharmacyId, "schedules", "frequencies"), { items: frequencies }, { merge: true }).catch((e) =>
-    console.warn("[Firestore] Frequencies save warning:", e)
-  );
+  if (skipQueue) return;
+
+  enqueueOfflineSync("frequencies", pharmacyId);
+  if (isBrowserOnline()) {
+    setDoc(doc(db, "tenants", pharmacyId, "schedules", "frequencies"), { items: frequencies }, { merge: true })
+      .then(() => removeOfflineSyncItems([`frequencies:${pharmacyId}`]))
+      .catch((e) => console.warn("[Firestore] Frequencies save deferred to offline queue:", e));
+  }
 }
 
 /**
@@ -805,15 +922,140 @@ export function getTenantLogs(pharmacyId: string): AuditScheduleLog[] {
 }
 
 /**
- * Saves isolated tenant audit logs
+ * Saves isolated tenant audit logs (offline-first)
  */
-export function saveTenantLogs(pharmacyId: string, logs: AuditScheduleLog[]): void {
+export function saveTenantLogs(pharmacyId: string, logs: AuditScheduleLog[], skipQueue = false): void {
   const key = `tenant_${pharmacyId}_logs`;
   setLocal(key, logs);
 
-  setDoc(doc(db, "tenants", pharmacyId, "records", "logs"), { items: logs }, { merge: true }).catch((e) =>
-    console.warn("[Firestore] Logs save warning:", e)
-  );
+  if (skipQueue) return;
+
+  enqueueOfflineSync("logs", pharmacyId);
+  if (isBrowserOnline()) {
+    setDoc(doc(db, "tenants", pharmacyId, "records", "logs"), { items: logs }, { merge: true })
+      .then(() => removeOfflineSyncItems([`logs:${pharmacyId}`]))
+      .catch((e) => console.warn("[Firestore] Logs save deferred to offline queue:", e));
+  }
+}
+
+/**
+ * Flushes all queued offline mutations to Firestore when connectivity returns
+ */
+export async function syncPendingChangesToCloud(): Promise<{
+  syncedCount: number;
+  remainingCount: number;
+}> {
+  if (!isBrowserOnline()) {
+    return { syncedCount: 0, remainingCount: getPendingSyncQueue().length };
+  }
+
+  const queue = getPendingSyncQueue();
+  if (queue.length === 0) {
+    return { syncedCount: 0, remainingCount: 0 };
+  }
+
+  const pharmacies = getLocal<Pharmacy[]>(PHARMACIES_KEY, []);
+  const users = getLocal<AppUser[]>(USERS_REGISTRY_KEY, []);
+  const completedIds: string[] = [];
+
+  for (const item of queue) {
+    try {
+      switch (item.entity) {
+        case "pharmacy": {
+          const pharm = pharmacies.find((p) => p.id === item.pharmacyId);
+          if (pharm) {
+            await setDoc(doc(db, "pharmacies", pharm.id), pharm, { merge: true });
+          }
+          completedIds.push(item.id);
+          break;
+        }
+        case "user": {
+          const user = users.find((u) => u.id === item.targetId);
+          if (user) {
+            await setDoc(doc(db, "users", user.id), user, { merge: true });
+          }
+          completedIds.push(item.id);
+          break;
+        }
+        case "user_delete": {
+          if (item.targetId) {
+            await deleteDoc(doc(db, "users", item.targetId));
+          }
+          completedIds.push(item.id);
+          break;
+        }
+        case "products": {
+          const products = getTenantProducts(item.pharmacyId);
+          await setDoc(
+            doc(db, "tenants", item.pharmacyId, "catalog", "products"),
+            { items: products },
+            { merge: true }
+          );
+          completedIds.push(item.id);
+          break;
+        }
+        case "sales": {
+          const sales = getTenantSales(item.pharmacyId);
+          await setDoc(
+            doc(db, "tenants", item.pharmacyId, "records", "sales"),
+            { items: sales },
+            { merge: true }
+          );
+          completedIds.push(item.id);
+          break;
+        }
+        case "audits": {
+          const audits = getTenantAudits(item.pharmacyId);
+          await setDoc(
+            doc(db, "tenants", item.pharmacyId, "records", "audits"),
+            { items: audits },
+            { merge: true }
+          );
+          completedIds.push(item.id);
+          break;
+        }
+        case "frequencies": {
+          const frequencies = getTenantFrequencies(item.pharmacyId);
+          await setDoc(
+            doc(db, "tenants", item.pharmacyId, "schedules", "frequencies"),
+            { items: frequencies },
+            { merge: true }
+          );
+          completedIds.push(item.id);
+          break;
+        }
+        case "logs": {
+          const logs = getTenantLogs(item.pharmacyId);
+          await setDoc(
+            doc(db, "tenants", item.pharmacyId, "records", "logs"),
+            { items: logs },
+            { merge: true }
+          );
+          completedIds.push(item.id);
+          break;
+        }
+        case "tenant_full": {
+          const pharm = pharmacies.find((p) => p.id === item.pharmacyId);
+          if (pharm) {
+            const snapshot = compileTenantSnapshot(item.pharmacyId, pharm);
+            await setDoc(
+              doc(db, "tenants", item.pharmacyId),
+              { ...snapshot, updatedAt: new Date().toISOString() },
+              { merge: true }
+            );
+          }
+          completedIds.push(item.id);
+          break;
+        }
+      }
+    } catch (err) {
+      console.warn(`[OfflineSync] Failed syncing ${item.id}, keeping in queue:`, err);
+    }
+  }
+
+  removeOfflineSyncItems(completedIds);
+  const remainingCount = getPendingSyncQueue().length;
+  return { syncedCount: completedIds.length, remainingCount };
 }
 
 /**
@@ -833,24 +1075,41 @@ export function compileTenantSnapshot(pharmacyId: string, pharmacy: Pharmacy): T
 }
 
 /**
- * Backs up tenant database directly to Firebase Firestore with parallel background execution
+ * Backs up tenant database locally first (instant offline persistence) and syncs to cloud when online
  */
 export async function backupTenantDatabase(
   pharmacyId: string,
   pharmacy: Pharmacy
-): Promise<{ success: boolean; timestamp: string; message: string }> {
+): Promise<{ success: boolean; timestamp: string; message: string; offlineOnly?: boolean }> {
   const snapshot = compileTenantSnapshot(pharmacyId, pharmacy);
   const timestamp = new Date().toISOString();
 
-  // 1. Instant local persistence
+  // 1. Instant local & IndexedDB persistence
   localStorage.setItem(`tenant_${pharmacyId}_last_backup`, timestamp);
+  idbSet(`tenant_${pharmacyId}_last_backup`, timestamp).catch(() => null);
+  idbSet(`tenant_${pharmacyId}_snapshot`, snapshot).catch(() => null);
 
-  // 2. Parallel cloud sync (Firestore + Server Backup)
+  if (!isBrowserOnline()) {
+    enqueueOfflineSync("tenant_full", pharmacyId);
+    return {
+      success: true,
+      timestamp,
+      offlineOnly: true,
+      message: "Saved locally on this device. Changes will sync to cloud automatically when back online."
+    };
+  }
+
+  // 2. Parallel cloud sync (Firestore + Server Backup + Pending Queue Flush)
   const syncPromise = Promise.allSettled([
-    setDoc(doc(db, "tenants", pharmacyId), {
-      ...snapshot,
-      lastBackup: timestamp
-    }, { merge: true }),
+    syncPendingChangesToCloud(),
+    setDoc(
+      doc(db, "tenants", pharmacyId),
+      {
+        ...snapshot,
+        lastBackup: timestamp
+      },
+      { merge: true }
+    ),
     setDoc(doc(db, "pharmacies", pharmacyId), pharmacy, { merge: true }),
     setDoc(doc(db, "tenants", pharmacyId, "catalog", "products"), { items: snapshot.products }, { merge: true }),
     setDoc(doc(db, "tenants", pharmacyId, "records", "sales"), { items: snapshot.sales }, { merge: true }),
@@ -864,31 +1123,41 @@ export async function backupTenantDatabase(
     }).catch(() => null)
   ]);
 
-  // Race with a fast 400ms window so the button never lags or hangs
-  const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 400));
+  // Race with a fast 600ms window so the button stays snappy
+  const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 600));
   await Promise.race([syncPromise, timeoutPromise]);
 
   return {
     success: true,
     timestamp,
-    message: "Database securely persisted to Cloud and local storage."
+    message: "Database securely persisted to Cloud and local offline storage."
   };
 }
 
 /**
- * Loads entire tenant data from Firestore into local cache if online
+ * Loads entire tenant data from Firestore into local cache if online.
+ * Protects local unsynced offline changes by flushing pending writes first!
  */
 export async function pullTenantFromFirebase(pharmacyId: string): Promise<TenantSnapshot | null> {
+  if (!isBrowserOnline()) {
+    return null;
+  }
+
+  // Never overwrite unsynced local offline work — push local changes first!
+  if (hasPendingOfflineChanges(pharmacyId)) {
+    await syncPendingChangesToCloud();
+  }
+
   try {
     // 1. Check main tenant document
     const tenantDoc = await getDoc(doc(db, "tenants", pharmacyId));
     if (tenantDoc.exists()) {
       const data = tenantDoc.data() as TenantSnapshot;
-      if (data.products && Array.isArray(data.products)) saveTenantProducts(pharmacyId, data.products);
-      if (data.sales && Array.isArray(data.sales)) saveTenantSales(pharmacyId, data.sales);
-      if (data.audits && Array.isArray(data.audits)) saveTenantAudits(pharmacyId, data.audits);
-      if (data.frequencies && Array.isArray(data.frequencies)) saveTenantFrequencies(pharmacyId, data.frequencies);
-      if (data.logs && Array.isArray(data.logs)) saveTenantLogs(pharmacyId, data.logs);
+      if (data.products && Array.isArray(data.products)) saveTenantProducts(pharmacyId, data.products, true);
+      if (data.sales && Array.isArray(data.sales)) saveTenantSales(pharmacyId, data.sales, true);
+      if (data.audits && Array.isArray(data.audits)) saveTenantAudits(pharmacyId, data.audits, true);
+      if (data.frequencies && Array.isArray(data.frequencies)) saveTenantFrequencies(pharmacyId, data.frequencies, true);
+      if (data.logs && Array.isArray(data.logs)) saveTenantLogs(pharmacyId, data.logs, true);
       return data;
     }
 
@@ -906,50 +1175,53 @@ export async function pullTenantFromFirebase(pharmacyId: string): Promise<Tenant
     if (catalogSnap.status === "fulfilled" && catalogSnap.value.exists()) {
       const prods = catalogSnap.value.data()?.items;
       if (Array.isArray(prods)) {
-        saveTenantProducts(pharmacyId, prods);
+        saveTenantProducts(pharmacyId, prods, true);
         hadSubcollectionData = true;
       }
     }
     if (salesSnap.status === "fulfilled" && salesSnap.value.exists()) {
       const sales = salesSnap.value.data()?.items;
       if (Array.isArray(sales)) {
-        saveTenantSales(pharmacyId, sales);
+        saveTenantSales(pharmacyId, sales, true);
         hadSubcollectionData = true;
       }
     }
     if (auditsSnap.status === "fulfilled" && auditsSnap.value.exists()) {
       const audits = auditsSnap.value.data()?.items;
       if (Array.isArray(audits)) {
-        saveTenantAudits(pharmacyId, audits);
+        saveTenantAudits(pharmacyId, audits, true);
         hadSubcollectionData = true;
       }
     }
     if (freqSnap.status === "fulfilled" && freqSnap.value.exists()) {
       const freqs = freqSnap.value.data()?.items;
       if (Array.isArray(freqs)) {
-        saveTenantFrequencies(pharmacyId, freqs);
+        saveTenantFrequencies(pharmacyId, freqs, true);
         hadSubcollectionData = true;
       }
     }
     if (logsSnap.status === "fulfilled" && logsSnap.value.exists()) {
       const logs = logsSnap.value.data()?.items;
       if (Array.isArray(logs)) {
-        saveTenantLogs(pharmacyId, logs);
+        saveTenantLogs(pharmacyId, logs, true);
         hadSubcollectionData = true;
       }
     }
 
     if (hadSubcollectionData) {
-      return {
-        pharmacy: getLocal<Pharmacy[]>(PHARMACIES_KEY, [DEFAULT_PHARMACY]).find((p) => p.id === pharmacyId) || DEFAULT_PHARMACY,
-        users: getTenantUsers(pharmacyId),
-        products: getTenantProducts(pharmacyId),
-        sales: getTenantSales(pharmacyId),
-        audits: getTenantAudits(pharmacyId),
-        frequencies: getTenantFrequencies(pharmacyId),
-        logs: getTenantLogs(pharmacyId),
-        lastBackup: new Date().toISOString()
-      };
+      const currentPharm = getLocal<Pharmacy[]>(PHARMACIES_KEY, []).find((p) => p.id === pharmacyId);
+      if (currentPharm) {
+        return {
+          pharmacy: currentPharm,
+          users: getTenantUsers(pharmacyId),
+          products: getTenantProducts(pharmacyId),
+          sales: getTenantSales(pharmacyId),
+          audits: getTenantAudits(pharmacyId),
+          frequencies: getTenantFrequencies(pharmacyId),
+          logs: getTenantLogs(pharmacyId),
+          lastBackup: new Date().toISOString()
+        };
+      }
     }
   } catch (err) {
     console.warn("[Firestore Pull]", err);
