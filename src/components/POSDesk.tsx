@@ -10,7 +10,6 @@ import {
   CreditCard,
   Banknote,
   ArrowRight,
-  Sparkles,
   Package,
   Receipt,
   ChevronLeft,
@@ -388,9 +387,9 @@ export const POSDesk: React.FC<POSDeskProps> = ({
                       <button
                         onClick={() => onRequestAiConsult(p)}
                         title="AI Clinical & Price Consult"
-                        className="p-2 rounded-xl bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 border border-slate-200 transition-all"
+                        className="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-emerald-50 text-emerald-700 hover:text-emerald-800 border border-slate-200 transition-all text-xs font-black tracking-tight flex items-center justify-center cursor-pointer"
                       >
-                        <Sparkles className="w-4 h-4 text-emerald-600" />
+                        AI
                       </button>
 
                       <button

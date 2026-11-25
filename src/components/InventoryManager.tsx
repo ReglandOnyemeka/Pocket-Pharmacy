@@ -21,7 +21,6 @@ import {
   CheckCircle2,
   FileCheck,
   HelpCircle,
-  Sparkles,
   ArrowRight
 } from "lucide-react";
 import * as XLSX from "xlsx";

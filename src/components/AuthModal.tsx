@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Lock,
   User,
@@ -75,6 +75,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [regCac, setRegCac] = useState("");
   const [regPcn, setRegPcn] = useState("");
   const [regError, setRegError] = useState<string | null>(null);
+
+  // Ensure login fields always start clean without stale or pre-filled credentials
+  useEffect(() => {
+    if (isOpen) {
+      setLoginUsername("");
+      setLoginPassword("");
+      setLoginError(null);
+      setResetIdentifier("");
+      setResetNewPassword("");
+      setResetConfirmPassword("");
+      setResetError(null);
+      setResetSuccess(null);
+      setRegError(null);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -301,7 +316,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="e.g. michael_superadmin"
+                  autoComplete="off"
+                  placeholder="Enter username or email"
                   value={loginUsername}
                   onChange={(e) => setLoginUsername(e.target.value)}
                   className="w-full pl-3.5 pr-10 py-2 sm:py-2.5 bg-[#f8fafc] border border-slate-200 rounded-xl text-xs sm:text-sm font-mono text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0a4738] focus:border-transparent transition-all"
@@ -333,7 +349,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <input
                   type="password"
                   required
-                  placeholder="Enter 6-8 char password"
+                  autoComplete="current-password"
+                  placeholder="Enter password"
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
                   className="w-full pl-3.5 pr-10 py-2 sm:py-2.5 bg-[#f8fafc] border border-slate-200 rounded-xl text-xs sm:text-sm font-mono text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0a4738] focus:border-transparent transition-all"
@@ -364,77 +381,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   </>
                 )}
               </button>
-            </div>
-
-            {/* Quick 1-Click Demo Fill for Fast Testing */}
-            <div className="pt-2.5 border-t border-slate-100 space-y-1.5">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block text-center">
-                ✨ Instant Demo Access (1-Click Fill)
-              </span>
-              <div className="grid grid-cols-3 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginUsername("michael_superadmin");
-                    setLoginPassword("Super12");
-                    setLoginError(null);
-                  }}
-                  className="p-1.5 sm:p-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 text-left transition-colors cursor-pointer"
-                >
-                  <div className="text-[11px] sm:text-xs font-bold text-emerald-950 flex items-center gap-1">
-                    👑 Admin
-                  </div>
-                  <div className="text-[9px] sm:text-[10px] text-emerald-700 font-mono truncate">
-                    michael_superadmin
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const pharmUser = users.find(u => u.role === "admin" && u.username !== "michael_superadmin") || users[1];
-                    if (pharmUser) {
-                      setLoginUsername(pharmUser.username);
-                      setLoginPassword(pharmUser.pin);
-                    } else {
-                      setLoginUsername("pharm_chioma");
-                      setLoginPassword("Chioma1");
-                    }
-                    setLoginError(null);
-                  }}
-                  className="p-1.5 sm:p-2 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200/80 text-left transition-colors cursor-pointer"
-                >
-                  <div className="text-[11px] sm:text-xs font-bold text-blue-950 flex items-center gap-1">
-                    👩🏾‍⚕️ Pharm
-                  </div>
-                  <div className="text-[9px] sm:text-[10px] text-blue-700 font-mono truncate">
-                    pharm_chioma
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const cashierUser = users.find(u => u.role === "cashier") || users[2];
-                    if (cashierUser) {
-                      setLoginUsername(cashierUser.username);
-                      setLoginPassword(cashierUser.pin);
-                    } else {
-                      setLoginUsername("cashier_ade");
-                      setLoginPassword("Adeola1");
-                    }
-                    setLoginError(null);
-                  }}
-                  className="p-1.5 sm:p-2 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200/80 text-left transition-colors cursor-pointer"
-                >
-                  <div className="text-[11px] sm:text-xs font-bold text-amber-950 flex items-center gap-1">
-                    👨🏾‍💼 Cashier
-                  </div>
-                  <div className="text-[9px] sm:text-[10px] text-amber-700 font-mono truncate">
-                    cashier_ade
-                  </div>
-                </button>
-              </div>
             </div>
           </form>
         )}
@@ -477,7 +423,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="e.g. michael_superadmin"
+                  autoComplete="off"
+                  placeholder="Enter Super Admin username or email"
                   value={resetIdentifier}
                   onChange={(e) => setResetIdentifier(e.target.value)}
                   className="w-full pl-3 pr-9 py-2 bg-[#f8fafc] border border-slate-200 rounded-xl text-xs sm:text-sm font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0a4738]"
@@ -571,7 +518,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <input
                 type="text"
                 required
-                placeholder="e.g. Apex Health Pharmacy"
+                placeholder="Enter pharmacy name"
                 value={regPharmName}
                 onChange={(e) => setRegPharmName(e.target.value)}
                 className="w-full px-3 py-1.5 sm:py-2 bg-[#f8fafc] border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0a4738]"
@@ -586,7 +533,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="Pharm. Mike"
+                  placeholder="Full name"
                   value={regDirector}
                   onChange={(e) => setRegDirector(e.target.value)}
                   className="w-full px-3 py-1.5 sm:py-2 bg-[#f8fafc] border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0a4738]"
@@ -600,7 +547,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="Ikeja, Lagos"
+                  placeholder="City, State"
                   value={regLocation}
                   onChange={(e) => setRegLocation(e.target.value)}
                   className="w-full px-3 py-1.5 sm:py-2 bg-[#f8fafc] border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0a4738]"
@@ -616,7 +563,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <input
                   type="tel"
                   required
-                  placeholder="+234..."
+                  placeholder="Phone number"
                   value={regPhone}
                   onChange={(e) => setRegPhone(e.target.value)}
                   className="w-full px-3 py-1.5 sm:py-2 bg-[#f8fafc] border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0a4738]"
@@ -630,7 +577,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <input
                   type="email"
                   required
-                  placeholder="admin@pharm.com"
+                  placeholder="Email address"
                   value={regEmail}
                   onChange={(e) => setRegEmail(e.target.value)}
                   className="w-full px-3 py-1.5 sm:py-2 bg-[#f8fafc] border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0a4738]"
@@ -651,7 +598,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <input
                     type="text"
                     required
-                    placeholder="mike_superadmin"
+                    autoComplete="off"
+                    placeholder="Choose username"
                     value={regUsername}
                     onChange={(e) => setRegUsername(e.target.value)}
                     className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0a4738]"
@@ -667,7 +615,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     required
                     minLength={6}
                     maxLength={8}
-                    placeholder="Super12"
+                    autoComplete="new-password"
+                    placeholder="6-8 characters"
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
                     className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0a4738]"

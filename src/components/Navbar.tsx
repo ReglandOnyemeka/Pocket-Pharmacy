@@ -14,12 +14,12 @@ import {
   Menu,
   X,
   ChevronRight,
-  Sparkles,
   Store,
   Clock
 } from "lucide-react";
 import { Pharmacy, AppUser, UserRole } from "../types";
 import { PocketPharmacyLogo } from "./PocketPharmacyLogo";
+import { PWAInstallButton } from "./PWAInstallButton";
 
 interface NavbarProps {
   currentPharmacy: Pharmacy;
@@ -178,9 +178,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </nav>
 
-            {/* Right Area: Fast Save Data Button, User Profile & Mobile Toggle Button */}
+            {/* Right Area: PWA Install, Fast Save Data Button, User Profile & Mobile Toggle Button */}
             <div className="flex items-center gap-2 sm:gap-3">
-              
+              <PWAInstallButton compact />
+
               {/* Backup Database Button */}
               <div className="flex flex-col items-end">
                 <button

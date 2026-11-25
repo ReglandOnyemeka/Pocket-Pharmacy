@@ -31,9 +31,13 @@ import {
   backupTenantDatabase,
   getLastBackupTime,
   subscribeTenantRegistry,
-  pullTenantFromFirebase
+  pullTenantFromFirebase,
+  hydrateOfflineStorage,
+  syncPendingChangesToCloud,
+  subscribePendingSyncQueue
 } from "./utils/tenantStorage";
 import { Navbar } from "./components/Navbar";
+import { OfflineBanner } from "./components/OfflineBanner";
 import { POSDesk } from "./components/POSDesk";
 import { InventoryManager } from "./components/InventoryManager";
 import { PharmacyAlerts } from "./components/PharmacyAlerts";
@@ -43,6 +47,7 @@ import { AuthModal } from "./components/AuthModal";
 import { ReceiptModal } from "./components/ReceiptModal";
 import { ToastProvider, useToast } from "./context/ToastContext";
 import { ToastContainer } from "./components/ToastContainer";
+import { useOnlineStatus } from "./hooks/useOnlineStatus";
 
 function AppContent() {
   const { notifyProductAdded, notifyCheckout, notifyUpload, notifySuccess, notifyError } = useToast();
@@ -71,9 +76,12 @@ function AppContent() {
   const [consultTargetProduct, setConsultTargetProduct] = useState<Product | null>(null);
   const [lastReceipt, setLastReceipt] = useState<ReceiptData | null>(null);
 
-  // Backup & 10-Minute Auto-Sync State
+  // Backup & Offline-First Sync State
   const [lastBackupTime, setLastBackupTime] = useState<string | null>(null);
   const [isBackingUp, setIsBackingUp] = useState<boolean>(false);
+  const isOnline = useOnlineStatus();
+  const [pendingSyncCount, setPendingSyncCount] = useState<number>(0);
+  const [isSyncingQueue, setIsSyncingQueue] = useState<boolean>(false);
 
   // 1. Load Isolated Tenant Data
   const loadTenantData = useCallback((pharmacyId: string) => {
@@ -86,51 +94,85 @@ function AppContent() {
     setLastBackupTime(getLastBackupTime(pharmacyId));
   }, []);
 
-  // 2. Initial Multi-Tenant Boot & Real-Time Cloud Listener
+  // 2. Initial Multi-Tenant Boot & Real-Time Cloud Listener (Never auto-logs into demo/HQ data)
   useEffect(() => {
-    const { pharmacies: initialPharmacies, users: initialUsers } = initTenantRegistry();
-    setPharmacies(initialPharmacies);
-    setUsers(initialUsers);
+    let isMounted = true;
+
+    const bootWorkspace = async () => {
+      await hydrateOfflineStorage().catch(() => false);
+      if (!isMounted) return;
+
+      const { pharmacies: initialPharmacies, users: initialUsers } = initTenantRegistry();
+      setPharmacies(initialPharmacies);
+      setUsers(initialUsers);
+
+      // Only restore an explicitly authenticated session (never auto-sign-in to demo or headquarters data)
+      const savedUserRaw = localStorage.getItem("pocket_active_user");
+      const savedPharmRaw = localStorage.getItem("pocket_active_pharmacy");
+      const explicitLogin = localStorage.getItem("pocket_explicit_login") === "true";
+
+      if (savedUserRaw && savedPharmRaw) {
+        try {
+          const activeU = JSON.parse(savedUserRaw) as AppUser;
+          const activeP = JSON.parse(savedPharmRaw) as Pharmacy;
+
+          const isLegacyAutoDemo =
+            !explicitLogin && activeP?.id === "pocket-pharmacy-hq";
+
+          if (activeU?.id && activeP?.id && !isLegacyAutoDemo) {
+            await hydrateOfflineStorage(activeP.id).catch(() => false);
+            if (!isMounted) return;
+            setCurrentUser(activeU);
+            setCurrentPharmacy(activeP);
+            loadTenantData(activeP.id);
+          } else if (isLegacyAutoDemo) {
+            localStorage.removeItem("pocket_active_user");
+            localStorage.removeItem("pocket_active_pharmacy");
+          }
+        } catch {
+          // Ignore corrupt storage and show login screen
+        }
+      }
+    };
+
+    bootWorkspace();
 
     // Subscribe to live cloud updates for pharmacies and users
-    const unsubscribe = subscribeTenantRegistry((updatedPharmacies, updatedUsers) => {
+    const unsubscribeRegistry = subscribeTenantRegistry((updatedPharmacies, updatedUsers) => {
       setPharmacies(updatedPharmacies);
       setUsers(updatedUsers);
     });
 
-    // Check saved active user/pharmacy
-    const savedUserRaw = localStorage.getItem("pocket_active_user");
-    const savedPharmRaw = localStorage.getItem("pocket_active_pharmacy");
+    // Subscribe to offline pending sync queue
+    const unsubscribeSyncQueue = subscribePendingSyncQueue((items) => {
+      setPendingSyncCount(items.length);
+    });
 
-    let activeU: AppUser | null = null;
-    let activeP: Pharmacy | null = null;
-
-    if (savedUserRaw && savedPharmRaw) {
-      try {
-        activeU = JSON.parse(savedUserRaw);
-        activeP = JSON.parse(savedPharmRaw);
-      } catch (e) {
-        // Fallback silently if storage is corrupt
-      }
-    }
-
-    if (!activeU || !activeP) {
-      activeU = initialUsers[0] || null;
-      activeP = initialPharmacies.find((p) => p.id === activeU?.pharmacyId) || initialPharmacies[0] || null;
-      if (activeU && activeP) {
-        localStorage.setItem("pocket_active_user", JSON.stringify(activeU));
-        localStorage.setItem("pocket_active_pharmacy", JSON.stringify(activeP));
-      }
-    }
-
-    if (activeU && activeP) {
-      setCurrentUser(activeU);
-      setCurrentPharmacy(activeP);
-      loadTenantData(activeP.id);
-    }
-
-    return () => unsubscribe();
+    return () => {
+      isMounted = false;
+      unsubscribeRegistry();
+      unsubscribeSyncQueue();
+    };
   }, [loadTenantData]);
+
+  // 2b. Automatically flush queued offline mutations when connectivity returns
+  const handleSyncPendingNow = useCallback(async () => {
+    if (!navigator.onLine || isSyncingQueue) return;
+    setIsSyncingQueue(true);
+    try {
+      await syncPendingChangesToCloud();
+    } catch (e) {
+      console.warn("[OfflineSync] Queue flush warning:", e);
+    } finally {
+      setIsSyncingQueue(false);
+    }
+  }, [isSyncingQueue]);
+
+  useEffect(() => {
+    if (isOnline && pendingSyncCount > 0) {
+      handleSyncPendingNow();
+    }
+  }, [isOnline, pendingSyncCount, handleSyncPendingNow]);
 
   // 3. Automated 10-Minute Background Sync (When Online)
   useEffect(() => {
@@ -180,9 +222,10 @@ function AppContent() {
     setCurrentPharmacy(pharmacy);
     localStorage.setItem("pocket_active_user", JSON.stringify(user));
     localStorage.setItem("pocket_active_pharmacy", JSON.stringify(pharmacy));
+    localStorage.setItem("pocket_explicit_login", "true");
     loadTenantData(pharmacy.id);
     setIsAuthModalOpen(false);
-    setActiveTab(user.role === "cashier" ? "pos" : "pos");
+    setActiveTab("pos");
     notifySuccess("Welcome Back", `Signed in to ${pharmacy.name} as ${user.fullName}.`);
 
     // Asynchronously pull cloud tenant catalog/records if any exist
@@ -210,6 +253,7 @@ function AppContent() {
     setPharmacies(updatedPharmList);
     setUsers(updatedUserList);
 
+    localStorage.setItem("pocket_explicit_login", "true");
     setCurrentPharmacy(newPharm);
     setCurrentUser(superAdmin);
     loadTenantData(newPharm.id);
@@ -223,6 +267,7 @@ function AppContent() {
     setCurrentPharmacy(null);
     localStorage.removeItem("pocket_active_user");
     localStorage.removeItem("pocket_active_pharmacy");
+    localStorage.removeItem("pocket_explicit_login");
     setIsAuthModalOpen(false);
     notifySuccess("Logged Out", "You have securely signed out of your pharmacy session.");
   }, [notifySuccess]);
@@ -486,16 +531,26 @@ function AppContent() {
 
   if (!currentPharmacy || !currentUser) {
     return (
-      <AuthModal
-        isOpen={true}
-        isFullScreen={true}
-        showCancelButton={false}
-        onClose={() => {}}
-        pharmacies={pharmacies}
-        users={users}
-        onLogin={handleLogin}
-        onRegisterTenant={handleRegisterTenant}
-      />
+      <div className="min-h-screen flex flex-col bg-[#041f18]">
+        <OfflineBanner
+          isOnline={isOnline}
+          pendingCount={pendingSyncCount}
+          isSyncing={isSyncingQueue}
+          onSyncNow={handleSyncPendingNow}
+        />
+        <div className="flex-1">
+          <AuthModal
+            isOpen={true}
+            isFullScreen={true}
+            showCancelButton={false}
+            onClose={() => {}}
+            pharmacies={pharmacies}
+            users={users}
+            onLogin={handleLogin}
+            onRegisterTenant={handleRegisterTenant}
+          />
+        </div>
+      </div>
     );
   }
 
@@ -513,6 +568,13 @@ function AppContent() {
         onTriggerBackup={handleManualBackup}
         onLogout={handleLogout}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
+      />
+
+      <OfflineBanner
+        isOnline={isOnline}
+        pendingCount={pendingSyncCount}
+        isSyncing={isSyncingQueue}
+        onSyncNow={handleSyncPendingNow}
       />
 
       {/* Main Workspace Area */}

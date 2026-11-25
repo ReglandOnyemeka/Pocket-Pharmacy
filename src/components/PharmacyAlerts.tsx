@@ -4,7 +4,6 @@ import {
   Clock,
   Package,
   Layers,
-  Sparkles,
   ArrowRight,
   ShieldCheck,
   Calendar,
@@ -129,7 +128,7 @@ export const PharmacyAlerts: React.FC<PharmacyAlertsProps> = ({
                       onClick={() => onRequestAiConsult(p)}
                       className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
                     >
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                      <span className="text-[10px] font-black text-emerald-700 bg-emerald-100 px-1 py-0.5 rounded leading-none">AI</span>
                       Equivalents
                     </button>
 
@@ -200,9 +199,9 @@ export const PharmacyAlerts: React.FC<PharmacyAlertsProps> = ({
 
                     <button
                       onClick={() => onRequestAiConsult(p)}
-                      className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-all"
+                      className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
                     >
-                      <Sparkles className="w-4 h-4 text-emerald-600" />
+                      <span className="text-[10px] font-black text-emerald-700 bg-emerald-100 px-1 py-0.5 rounded leading-none">AI</span>
                       Consult
                     </button>
                   </div>

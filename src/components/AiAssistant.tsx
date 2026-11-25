@@ -11,7 +11,6 @@ import {
   Boxes,
   ShieldCheck,
   FileText,
-  Sparkles,
   Globe2,
   Gauge
 } from "lucide-react";
@@ -267,7 +266,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4 text-[#3be8b0]" />
+                  <Zap className="w-4 h-4 text-[#3be8b0]" />
                   <span>Consult AI</span>
                 </>
               )}
@@ -403,8 +402,8 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
               </div>
             </div>
             <span className="text-xs px-2.5 py-1 rounded bg-slate-800 text-amber-300 border border-slate-700 font-semibold flex items-center gap-1 font-mono">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-              Gemini 3.7 Flash Engine
+              <Zap className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+              Pharventory AI Engine
             </span>
           </div>
 

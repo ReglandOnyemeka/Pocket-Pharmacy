@@ -8,8 +8,7 @@ import {
   CheckCircle2,
   Phone,
   MessageCircle,
-  Heart,
-  Sparkles
+  Heart
 } from "lucide-react";
 import { ReceiptData } from "../types";
 

@@ -977,7 +977,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                         required
                         minLength={6}
                         maxLength={8}
-                        placeholder="e.g. AdePass or Cash12"
+                        placeholder="6-8 character password"
                         value={editPin}
                         onChange={(e) => setEditPin(e.target.value)}
                         className="w-full px-3 py-2 bg-white border border-emerald-300 rounded-xl text-sm text-slate-900 font-mono font-bold tracking-wider"
@@ -1064,7 +1064,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Pharm. Chinedu Okafor"
+                      placeholder="Enter staff full name"
                       value={newStaffFullName}
                       onChange={(e) => setNewStaffFullName(e.target.value)}
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900"
@@ -1079,7 +1079,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                       <input
                         type="text"
                         required
-                        placeholder="e.g. cashier_ade"
+                        placeholder="Choose staff username"
                         value={newStaffUsername}
                         onChange={(e) => setNewStaffUsername(e.target.value)}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 font-mono"
@@ -1110,7 +1110,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                       required
                       minLength={6}
                       maxLength={8}
-                      placeholder="e.g. AdePass or Cash12"
+                      placeholder="6-8 character password"
                       value={newStaffPin}
                       onChange={(e) => setNewStaffPin(e.target.value)}
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 font-mono font-bold"
@@ -1128,7 +1128,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                       <input
                         type="email"
                         required
-                        placeholder="staff@pharmacy.com"
+                        placeholder="Enter staff email"
                         value={newStaffEmail}
                         onChange={(e) => setNewStaffEmail(e.target.value)}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900"
